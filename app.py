@@ -4,7 +4,7 @@ import gspread
 import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta
-from streamlit_option_menu import option_menu # Library baru untuk menu estetik
+from streamlit_option_menu import option_menu 
 
 # --- PENGATURAN HALAMAN WEB ---
 st.set_page_config(page_title="Financely Dashboard", page_icon="✨", layout="wide", initial_sidebar_state="expanded")
@@ -16,9 +16,9 @@ sheet_file = gc.open("KeuanganKu")
 worksheet = sheet_file.sheet1 
 
 # --- TARGET TABUNGAN IMPIAN ---
-TARGET_NIKAH = 50000000
-TARGET_RUMAH = 150000000
-TARGET_MOBIL = 80000000
+TARGET_NIKAH = 250000000
+TARGET_RUMAH = 1500000000
+TARGET_MOBIL = 300000000
 
 # --- GAYA DESAIN CUSTOM (CSS) ---
 st.markdown("""
@@ -33,9 +33,8 @@ st.markdown("""
     .card-title { font-size: 13px; font-weight: 700; text-transform: uppercase; margin-bottom: 8px; color: gray; }
     .card-value { font-size: 32px; font-weight: 900; margin-bottom: 5px; }
     .card-subtext { font-size: 12px; color: gray; }
-    h1, h2, h3 { font-weight: 700 !important; }
+    h1, h2, h3, h4 { font-weight: 700 !important; }
     
-    /* Merapikan form di sidebar agar lebih padat */
     [data-testid="stSidebar"] div.stForm { background-color: transparent; border: none; padding: 0;}
     </style>
 """, unsafe_allow_html=True)
@@ -51,16 +50,15 @@ def buat_kartu(icon, judul, nilai, warna_nilai, teks_bawah):
     st.markdown(html, unsafe_allow_html=True)
 
 # ==========================================
-# BAGIAN 1: SIDEBAR (NAVIGASI ESTETIK & QUICK INPUT)
+# BAGIAN 1: SIDEBAR (NAVIGASI & QUICK INPUT)
 # ==========================================
 with st.sidebar:
     st.markdown("### 🧭 Main Menu")
     
-    # --- MENU NAVIGASI ESTETIK (ALA CASHFLIX) ---
     menu_pilihan = option_menu(
         menu_title=None,  
         options=["Dashboard", "Spending", "Tabungan", "Wallet"], 
-        icons=["house", "cart", "piggy-bank", "wallet2"], # Icon otomatis dari Bootstrap Icons
+        icons=["house", "cart", "piggy-bank", "wallet2"], 
         menu_icon="cast", default_index=0,
         styles={
             "container": {"padding": "0!important", "background-color": "transparent"},
@@ -72,7 +70,6 @@ with st.sidebar:
     
     st.divider()
     
-    # --- FILTER WAKTU ---
     st.markdown("### 📅 Time Filter")
     filter_waktu = st.selectbox("Periode Analisa:", 
         ["Bulan Ini", "Minggu Ini", "3 Bulan Terakhir", "6 Bulan Terakhir", "Tahun Ini", "Semua Waktu"],
@@ -91,7 +88,6 @@ with st.sidebar:
     
     st.divider()
 
-    # --- QUICK INPUT FORM ---
     st.markdown("### ⚡ Quick Input")
     input_tipe = st.selectbox("Jenis Transaksi", ["Pengeluaran", "Pemasukan", "Tabungan"])
     
@@ -108,7 +104,6 @@ with st.sidebar:
         input_kategori = st.selectbox("Kategori", kategori_pilihan)
         input_nominal = st.number_input("Nominal (Rp)", min_value=0, step=10000)
         
-        # Kolom sejajar untuk Tanggal & Catatan agar hemat tempat di sidebar
         col_tgl, col_cat = st.columns(2)
         with col_tgl: input_tanggal = st.date_input("Tanggal", datetime.today())
         with col_cat: input_catatan = st.text_input("Catatan")
@@ -118,7 +113,7 @@ with st.sidebar:
         if tombol_simpan:
             if input_nominal > 0:
                 worksheet.append_row([input_tanggal.strftime("%Y-%m-%d"), input_tipe, input_sumber, input_kategori, input_nominal, input_catatan])
-                st.toast(f"✅ {input_tipe} Rp {input_nominal:,.0f} berhasil disimpan!", icon="💸") # Notifikasi pop-up estetik
+                st.toast(f"✅ {input_tipe} Rp {input_nominal:,.0f} berhasil disimpan!", icon="💸") 
             else:
                 st.error("Nominal tidak boleh 0")
 
@@ -202,19 +197,23 @@ if menu_pilihan == "Dashboard":
 # HALAMAN 2: SPENDING
 # ==========================================
 elif menu_pilihan == "Spending":
-    st.markdown("<h2>🛒 Spending Analysis</h2>", unsafe_allow_html=True)
+    st.markdown("<h1 style='margin-bottom: 0px;'>🛒 Spending Analysis</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color: gray; margin-bottom: 30px;'>Detail pengeluaran Anda.</p>", unsafe_allow_html=True)
+    
     if not df.empty:
         df_pengeluaran = df_filter[df_filter['Tipe'] == 'Pengeluaran']
         if not df_pengeluaran.empty:
             total_spend = df_pengeluaran['Nominal'].sum()
-            st.markdown(f"**Total Pengeluaran ({filter_waktu}): Rp {total_spend:,.0f}**")
+            buat_kartu("💸", f"TOTAL PENGELUARAN ({filter_waktu.upper()})", f"Rp {total_spend:,.0f}", "#ef4444", "Keseluruhan dana keluar")
+            st.write("")
+            
             c1, c2 = st.columns(2)
             with c1:
-                fig_pie = px.pie(df_pengeluaran, values='Nominal', names='Kategori', hole=0.5)
+                fig_pie = px.pie(df_pengeluaran, values='Nominal', names='Kategori', hole=0.5, color_discrete_sequence=px.colors.qualitative.Pastel)
                 st.plotly_chart(fig_pie, use_container_width=True)
             with c2:
                 ringkasan = df_pengeluaran.groupby('Kategori')['Nominal'].sum().reset_index()
-                fig_bar = px.bar(ringkasan, x='Kategori', y='Nominal', text_auto='.2s')
+                fig_bar = px.bar(ringkasan, x='Kategori', y='Nominal', text_auto='.2s', color='Kategori', color_discrete_sequence=px.colors.qualitative.Pastel)
                 st.plotly_chart(fig_bar, use_container_width=True)
         else:
             st.info(f"Tidak ada pengeluaran di periode {filter_waktu}.")
@@ -222,33 +221,68 @@ elif menu_pilihan == "Spending":
         st.info("Belum ada data.")
 
 # ==========================================
-# HALAMAN 3: TABUNGAN
+# HALAMAN 3: TABUNGAN (UI BARU YANG LEBIH PREMIUM)
 # ==========================================
 elif menu_pilihan == "Tabungan":
-    st.markdown("<h2>🎯 Savings & Goals Tracker</h2>", unsafe_allow_html=True)
+    st.markdown("<h1 style='margin-bottom: 0px;'>🎯 Savings & Goals Tracker</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color: gray; margin-bottom: 30px;'>Pantau terus progres pencapaian impian Anda!</p>", unsafe_allow_html=True)
+    
     if not df.empty:
         df_tabungan = df[df['Tipe'] == 'Tabungan'] 
         terkumpul_nikah = df_tabungan[df_tabungan['Kategori'] == 'Biaya Nikah']['Nominal'].sum()
         terkumpul_rumah = df_tabungan[df_tabungan['Kategori'] == 'Beli Rumah']['Nominal'].sum()
         terkumpul_mobil = df_tabungan[df_tabungan['Kategori'] == 'Mobil']['Nominal'].sum()
         
-        def hitung_persen(terkumpul, target):
-            return min((terkumpul / target) if target > 0 else 0, 1.0)
+        total_tabungan_all = terkumpul_nikah + terkumpul_rumah + terkumpul_mobil
+        total_target_all = TARGET_NIKAH + TARGET_RUMAH + TARGET_MOBIL
+        
+        # --- BAGIAN ATAS: RINGKASAN & GRAFIK ALOKASI ---
+        kiri, kanan = st.columns([1, 2])
+        with kiri:
+            buat_kartu("🏆", "TOTAL ASET TABUNGAN", f"Rp {total_tabungan_all:,.0f}", "#8b5cf6", f"Dari total target Rp {total_target_all:,.0f}")
             
+        with kanan:
+            if total_tabungan_all > 0:
+                df_tab_group = df_tabungan.groupby('Kategori')['Nominal'].sum().reset_index()
+                fig_pie_tab = px.pie(df_tab_group, values='Nominal', names='Kategori', hole=0.5,
+                                     color_discrete_sequence=["#ec4899", "#0ea5e9", "#eab308"])
+                fig_pie_tab.update_layout(margin=dict(l=0, r=0, t=10, b=0), height=160,
+                                          legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1))
+                st.plotly_chart(fig_pie_tab, use_container_width=True)
+            else:
+                st.info("Mulai menabung untuk melihat grafik porsi alokasi!")
+
         st.divider()
-        st.subheader("💍 Biaya Nikah")
-        st.write(f"**Terkumpul: Rp {terkumpul_nikah:,.0f}** / Target: Rp {TARGET_NIKAH:,.0f}")
-        st.progress(hitung_persen(terkumpul_nikah, TARGET_NIKAH))
-        st.write("") 
+        st.markdown("### 🚀 Detail Target")
         
-        st.subheader("🏠 Beli Rumah")
-        st.write(f"**Terkumpul: Rp {terkumpul_rumah:,.0f}** / Target: Rp {TARGET_RUMAH:,.0f}")
-        st.progress(hitung_persen(terkumpul_rumah, TARGET_RUMAH))
-        st.write("")
+        # --- BAGIAN BAWAH: GRID KARTU TARGET (3 KOLOM SEJAJAR) ---
+        c1, c2, c3 = st.columns(3)
         
-        st.subheader("🚗 Kendaraan (Mobil)")
-        st.write(f"**Terkumpul: Rp {terkumpul_mobil:,.0f}** / Target: Rp {TARGET_MOBIL:,.0f}")
-        st.progress(hitung_persen(terkumpul_mobil, TARGET_MOBIL))
+        def render_goal_card(col, icon, title, terkumpul, target, color_hex):
+            with col:
+                with st.container(border=True):
+                    persen = min((terkumpul / target) if target > 0 else 0, 1.0)
+                    sisa = max(target - terkumpul, 0)
+                    
+                    st.markdown(f"<h4 style='margin-bottom: 0px;'>{icon} {title}</h4>", unsafe_allow_html=True)
+                    st.markdown(f"<h2 style='color: {color_hex}; margin-top: 5px; margin-bottom: 10px;'>Rp {terkumpul:,.0f}</h2>", unsafe_allow_html=True)
+                    
+                    st.progress(persen)
+                    
+                    st.markdown(f"""
+                        <div style='display: flex; justify-content: space-between; font-size: 13px; color: gray; margin-top: 5px;'>
+                            <span>🎯 Target: <b>Rp {target:,.0f}</b></span>
+                            <span style='color: {color_hex}; font-weight: bold;'>{persen*100:.1f}%</span>
+                        </div>
+                        <div style='font-size: 13px; color: gray; margin-top: 5px;'>
+                            ⏳ Kekurangan: <b>Rp {sisa:,.0f}</b>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+        render_goal_card(c1, "💍", "Biaya Nikah", terkumpul_nikah, TARGET_NIKAH, "#ec4899") # Warna Pink
+        render_goal_card(c2, "🏠", "Beli Rumah", terkumpul_rumah, TARGET_RUMAH, "#0ea5e9") # Warna Biru
+        render_goal_card(c3, "🚗", "Mobil", terkumpul_mobil, TARGET_MOBIL, "#eab308") # Warna Kuning
+        
     else:
         st.info("Belum ada tabungan yang tercatat.")
 
@@ -256,7 +290,9 @@ elif menu_pilihan == "Tabungan":
 # HALAMAN 4: WALLET
 # ==========================================
 elif menu_pilihan == "Wallet":
-    st.markdown("<h2>🏛️ Wallet & Accounts</h2>", unsafe_allow_html=True)
+    st.markdown("<h1 style='margin-bottom: 0px;'>🏛️ Wallet & Accounts</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='color: gray; margin-bottom: 30px;'>Kondisi kas nyata di rekening Anda saat ini.</p>", unsafe_allow_html=True)
+    
     if not df.empty:
         masuk_mandiri = df[(df['Tipe'] == 'Pemasukan') & (df['Sumber'] == 'MANDIRI')]['Nominal'].sum()
         keluar_mandiri = df[(df['Tipe'] != 'Pemasukan') & (df['Sumber'] == 'MANDIRI')]['Nominal'].sum()
