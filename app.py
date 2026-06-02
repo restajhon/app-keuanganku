@@ -3,7 +3,7 @@ import streamlit as st
 import gspread
 import pandas as pd
 import plotly.express as px
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # --- PENGATURAN HALAMAN WEB ---
 st.set_page_config(page_title="Financely Dashboard", page_icon="✨", layout="wide", initial_sidebar_state="expanded")
@@ -17,7 +17,6 @@ worksheet = sheet_file.sheet1
 # --- GAYA DESAIN CUSTOM (CSS) ---
 st.markdown("""
     <style>
-    .block-container { padding-top: 2rem; padding-bottom: 2rem; }
     .custom-card {
         background-color: var(--secondary-background-color);
         padding: 20px;
@@ -45,11 +44,7 @@ def buat_kartu(icon, judul, nilai, warna_nilai, teks_bawah):
 # BAGIAN 1: SIDEBAR (KONTROL & INPUT)
 # ==========================================
 with st.sidebar:
-    # --- FITUR BARU: FILTER TANGGAL ---
     st.markdown("### 📅 Dashboard Controls")
-    st.caption("Custom Date Range")
-    
-    # Set default bulan ini
     tanggal_hari_ini = datetime.today().date()
     tanggal_awal_bulan = tanggal_hari_ini.replace(day=1)
     
@@ -58,105 +53,64 @@ with st.sidebar:
     
     st.divider()
     
-    # --- FORM INPUT ---
     st.markdown("### 📝 Input Transaksi")
     input_tipe = st.radio("Fokus Tipe", ["Pengeluaran", "Pemasukan"], horizontal=True)
     
     with st.form("form_transaksi_baru", clear_on_submit=True):
         input_sumber = st.selectbox("Sumber Dana", ["MANDIRI", "JAGO"])
-        
-        if input_tipe == "Pemasukan":
-            kategori_pilihan = ["GITS", "WO", "Freelance", "Lain-lain"]
-        else:
-            kategori_pilihan = ["Makanan", "Transportasi", "Belanja", "Tagihan", "Subscription", "Lain-lain"]
-            
+        kategori_pilihan = ["GITS", "WO", "Freelance", "Lain-lain"] if input_tipe == "Pemasukan" else ["Makanan", "Transportasi", "Belanja", "Tagihan", "Subscription", "Lain-lain"]
         input_kategori = st.selectbox("Kategori", kategori_pilihan)
         input_tanggal = st.date_input("Tanggal Transaksi", datetime.today())
         input_nominal = st.number_input("Nominal (Rp)", min_value=0, step=5000)
         input_catatan = st.text_input("Keterangan Tambahan")
-        
         tombol_simpan = st.form_submit_button("Simpan Data", use_container_width=True)
         
-        if tombol_simpan:
-            if input_nominal > 0:
-                tanggal_teks = input_tanggal.strftime("%Y-%m-%d")
-                baris_baru = [tanggal_teks, input_tipe, input_sumber, input_kategori, input_nominal, input_catatan]
-                worksheet.append_row(baris_baru)
-                st.success("✅ Tersimpan!")
-            else:
-                st.error("Nominal 0")
+        if tombol_simpan and input_nominal > 0:
+            worksheet.append_row([input_tanggal.strftime("%Y-%m-%d"), input_tipe, input_sumber, input_kategori, input_nominal, input_catatan])
+            st.success("✅ Tersimpan!")
 
 # ==========================================
-# BAGIAN 2: AREA UTAMA (DASHBOARD ANALISA)
+# BAGIAN 2: AREA UTAMA
 # ==========================================
-
-# --- FITUR BARU: BANNER GRADIENT ---
-banner_html = """
-<div style="background: linear-gradient(90deg, #1e3a8a 0%, #ea580c 100%); padding: 30px; border-radius: 12px; color: white; margin-bottom: 25px;">
-    <h1 style="color: white; margin-top: 0; font-weight: 800; font-size: 36px;">📈 Financial Performance Overview</h1>
-    <p style="margin-bottom: 0; font-size: 16px; opacity: 0.9;">Comprehensive view of personal financial metrics and cashflow behavior</p>
-</div>
-"""
-st.markdown(banner_html, unsafe_allow_html=True)
+st.markdown("<div style='background: linear-gradient(90deg, #1e3a8a 0%, #ea580c 100%); padding: 30px; border-radius: 12px; color: white; margin-bottom: 25px;'><h1>📈 Financial Performance Overview</h1></div>", unsafe_allow_html=True)
 
 data_semua = worksheet.get_all_records()
-
 if len(data_semua) > 0:
     df = pd.DataFrame(data_semua)
     df['Nominal'] = pd.to_numeric(df['Nominal'])
-    
-    # Konversi format tanggal di pandas agar bisa difilter
     df['Tanggal'] = pd.to_datetime(df['Tanggal']).dt.date
     
-    # --- PERHITUNGAN ALL TIME (TIDAK KENA FILTER) ---
-    # Saldo harus dihitung dari awal mula agar akurat dengan sisa uang di bank
-    saldo_total = df[df['Tipe'] == 'Pemasukan']['Nominal'].sum() - df[df['Tipe'] == 'Pengeluaran']['Nominal'].sum()
-    saldo_mandiri = df[(df['Tipe'] == 'Pemasukan') & (df['Sumber'] == 'MANDIRI')]['Nominal'].sum() - df[(df['Tipe'] == 'Pengeluaran') & (df['Sumber'] == 'MANDIRI')]['Nominal'].sum()
-    saldo_jago = df[(df['Tipe'] == 'Pemasukan') & (df['Sumber'] == 'JAGO')]['Nominal'].sum() - df[(df['Tipe'] == 'Pengeluaran') & (df['Sumber'] == 'JAGO')]['Nominal'].sum()
-
-    # --- MEMFILTER DATA BERDASARKAN TANGGAL PILIHAN ---
+    # Filter & Metrik
     mask = (df['Tanggal'] >= start_date) & (df['Tanggal'] <= end_date)
     df_filtered = df.loc[mask]
-
-    # --- PERHITUNGAN DATA TERFILTER ---
-    total_masuk_filter = df_filtered[df_filtered['Tipe'] == 'Pemasukan']['Nominal'].sum()
-    total_keluar_filter = df_filtered[df_filtered['Tipe'] == 'Pengeluaran']['Nominal'].sum()
-
-    # --- KARTU METRIK UTAMA ---
-    st.markdown("#### 💰 Transaction Volume & Value", unsafe_allow_html=True)
-    kolom1, kolom2, kolom3, kolom4 = st.columns(4)
-    with kolom1:
-        buat_kartu("📦", "TOTAL AUM (SALDO ASLI)", f"Rp {saldo_total:,.0f}", "#0ea5e9", "Gabungan Mandiri & Jago (All Time)")
-    with kolom2:
-        buat_kartu("📥", "DEPOSITS (INCOME)", f"Rp {total_masuk_filter:,.0f}", "#22c55e", f"Pemasukan periode {start_date.strftime('%d %b')} - {end_date.strftime('%d %b')}")
-    with kolom3:
-        buat_kartu("📤", "WITHDRAWALS (EXPENSE)", f"Rp {total_keluar_filter:,.0f}", "#ef4444", f"Pengeluaran periode {start_date.strftime('%d %b')} - {end_date.strftime('%d %b')}")
-    with kolom4:
-        buat_kartu("🏛️", "ASSET ALLOCATION", f"Rp {saldo_mandiri:,.0f}", "#f59e0b", f"Mandiri. Jago: Rp {saldo_jago:,.0f}")
+    
+    # Kartu Metrik
+    c1, c2, c3 = st.columns(3)
+    with c1: buat_kartu("📦", "TOTAL AUM (SALDO)", f"Rp {df[df['Tipe']=='Pemasukan']['Nominal'].sum() - df[df['Tipe']=='Pengeluaran']['Nominal'].sum():,.0f}", "#0ea5e9", "All time balance")
+    with c2: buat_kartu("📥", "DEPOSITS", f"Rp {df_filtered[df_filtered['Tipe']=='Pemasukan']['Nominal'].sum():,.0f}", "#22c55e", "Income selected period")
+    with c3: buat_kartu("📤", "WITHDRAWALS", f"Rp {df_filtered[df_filtered['Tipe']=='Pengeluaran']['Nominal'].sum():,.0f}", "#ef4444", "Expenses selected period")
 
     st.divider()
 
-    # --- GRAFIK & TABEL (HANYA MENAMPILKAN DATA TERFILTER) ---
-    if not df_filtered.empty:
-        st.markdown(f"#### 📉 Cashflow Trend ({start_date.strftime('%d %b %Y')} - {end_date.strftime('%d %b %Y')})")
-        
+    # Grafik Garis & Pie Chart
+    col_chart1, col_chart2 = st.columns([2, 1])
+    
+    with col_chart1:
+        st.markdown("#### 📉 Cashflow Trend")
         df_tren = df_filtered.groupby(['Tanggal', 'Tipe'])['Nominal'].sum().reset_index()
-        grafik_garis = px.line(
-            df_tren, x='Tanggal', y='Nominal', color='Tipe',
-            color_discrete_map={"Pemasukan": "#0ea5e9", "Pengeluaran": "#ef4444"},
-            markers=True
-        )
-        grafik_garis.update_layout(
-            xaxis_title="", yaxis_title="", 
-            legend_title="", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-            margin=dict(l=0, r=0, t=10, b=0), height=350
-        )
-        st.plotly_chart(grafik_garis, use_container_width=True)
-        
-        st.markdown("#### 📁 Filtered Raw Data")
-        st.dataframe(df_filtered.iloc[::-1], use_container_width=True, hide_index=True)
-    else:
-        st.warning(f"Tidak ada transaksi tercatat antara {start_date.strftime('%d %b %Y')} hingga {end_date.strftime('%d %b %Y')}.")
+        fig_line = px.line(df_tren, x='Tanggal', y='Nominal', color='Tipe', color_discrete_map={"Pemasukan": "#0ea5e9", "Pengeluaran": "#ef4444"}, markers=True)
+        fig_line.update_layout(height=300, margin=dict(l=0, r=0, t=20, b=0))
+        st.plotly_chart(fig_line, use_container_width=True)
 
-else:
-    st.info("Database masih kosong. Sila gunakan menu di sebelah kiri untuk menginput data.")
+    with col_chart2:
+        st.markdown("#### 🛒 Expense Allocation")
+        df_pengeluaran = df_filtered[df_filtered['Tipe'] == 'Pengeluaran']
+        if not df_pengeluaran.empty:
+            fig_pie = px.pie(df_pengeluaran, values='Nominal', names='Kategori', hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+            fig_pie.update_layout(height=300, margin=dict(l=0, r=0, t=20, b=0))
+            st.plotly_chart(fig_pie, use_container_width=True)
+        else:
+            st.info("No expense data.")
+
+    st.markdown("#### 📁 Raw Data")
+    st.dataframe(df_filtered.iloc[::-1], use_container_width=True, hide_index=True)
