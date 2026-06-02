@@ -34,7 +34,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- HEADER APLIKASI (Meniru "Good morning, Jaylon") ---
-st.markdown("<h1 style='margin-bottom: 0px;'>Good morning, Difa ✨</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='margin-bottom: 0px;'>Hi, Resta ✨</h1>", unsafe_allow_html=True)
 st.markdown("<p style='color: gray; margin-bottom: 30px;'>This is your finance report</p>", unsafe_allow_html=True)
 
 # --- PEMBAGIAN TAB UTAMA ---
