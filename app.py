@@ -16,7 +16,6 @@ sheet_file = gc.open("KeuanganKu")
 worksheet = sheet_file.sheet1 
 
 # --- GAYA DESAIN CUSTOM (CSS) UNTUK TAMPILAN ESTETIK ---
-# Kode di bawah ini berguna untuk mempercantik font, membuat sudut kartu lebih melengkung (rounded), dan memberikan efek bayangan modern
 st.markdown("""
     <style>
     .main { background-color: #f8fafc; }
@@ -24,7 +23,7 @@ st.markdown("""
     div[data-testid="stMetricLabel"] { font-size: 14px; font-weight: 500; color: #64748b; }
     .stTabs [data-baseweb="tab"] { font-size: 16px; font-weight: 600; padding: 12px 24px; }
     </style>
-""", unsafe_value_with_allowed_scope_to_links=st.source_util.get_pages)
+""", unsafe_allow_html=True)
 
 # --- HEADER UTAMA APLIKASI ---
 # Membuat tampilan judul yang clean dan mewah tanpa elemen bawaan yang kaku
