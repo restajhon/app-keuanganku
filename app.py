@@ -3,6 +3,8 @@ import streamlit as st
 import gspread
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+import calendar
 from datetime import datetime, timedelta
 from streamlit_option_menu import option_menu 
 
@@ -46,7 +48,7 @@ st.markdown("""
     }
     .glass-card:hover {
         transform: translateY(-5px);
-        border: 1px solid rgba(14, 165, 233, 0.5); /* Efek glow biru saat dihover */
+        border: 1px solid rgba(14, 165, 233, 0.5); 
         box-shadow: 0 12px 40px 0 rgba(14, 165, 233, 0.15);
     }
     
@@ -208,7 +210,6 @@ if menu_pilihan == "Dashboard":
 
         st.write("---")
         
-        # --- FITUR BARU: TOTAL MONTHLY SUMMARY ---
         st.markdown("#### 📅 Total Monthly Summary")
         df_monthly = df.copy()
         if not df_monthly.empty:
@@ -271,7 +272,6 @@ elif menu_pilihan == "Spending":
                 fig_pie.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0))
                 st.plotly_chart(fig_pie, use_container_width=True)
             with c2:
-                # --- FITUR BARU: TOP 5 SPENDING ---
                 st.markdown("#### 🚨 Top 5 Spending Categories")
                 top_5 = df_pengeluaran.groupby('Kategori')['Nominal'].sum().nlargest(5).reset_index()
                 
@@ -288,29 +288,81 @@ elif menu_pilihan == "Spending":
             
             st.write("---")
             
-            # --- FITUR BARU: CATEGORIZATION HEATMAP ---
-            st.markdown("### 🗓️ Daily Spending Heatmap")
-            df_heat = df[df['Tipe'] == 'Pengeluaran'].copy()
-            if not df_heat.empty:
-                df_heat['Tanggal'] = pd.to_datetime(df_heat['Tanggal'])
-                df_heat['Bulan'] = df_heat['Tanggal'].dt.strftime('%Y-%m')
-                df_heat['Hari'] = df_heat['Tanggal'].dt.day
+            # --- FITUR BARU UPDATE: CALENDAR CASHFLOW HEATMAP ---
+            st.markdown("### 🗓️ Calendar Cashflow Heatmap")
+            
+            # Menghitung net cashflow (Pemasukan - Pengeluaran) per hari
+            df_daily = df_filter[df_filter['Tipe'].isin(['Pemasukan', 'Pengeluaran'])].groupby(['Tanggal', 'Tipe'])['Nominal'].sum().unstack(fill_value=0).reset_index()
+            
+            for col in ['Pemasukan', 'Pengeluaran']:
+                if col not in df_daily.columns:
+                    df_daily[col] = 0
+                    
+            df_daily['Net'] = df_daily['Pemasukan'] - df_daily['Pengeluaran']
+            df_daily['Tanggal'] = pd.to_datetime(df_daily['Tanggal'])
+            
+            if not df_daily.empty:
+                # Mengambil bulan & tahun paling terkini dari filter data
+                latest_date = df_daily['Tanggal'].max()
+                latest_month = latest_date.month
+                latest_year = latest_date.year
                 
-                heat_data = df_heat.groupby(['Bulan', 'Hari'])['Nominal'].sum().reset_index()
-                pivot_heat = heat_data.pivot(index="Bulan", columns="Hari", values="Nominal").fillna(0)
-                pivot_heat = pivot_heat.reindex(columns=range(1, 32), fill_value=0)
+                df_month = df_daily[(df_daily['Tanggal'].dt.month == latest_month) & (df_daily['Tanggal'].dt.year == latest_year)]
                 
-                fig_heat = px.imshow(
-                    pivot_heat, 
-                    labels=dict(x="Tanggal", y="Bulan", color="Pengeluaran (Rp)"),
-                    x=pivot_heat.columns, y=pivot_heat.index,
-                    color_continuous_scale="RdYlGn_r", aspect="auto"
+                # Membuat matriks kalender bulan tersebut
+                cal = calendar.monthcalendar(latest_year, latest_month)
+                net_dict = dict(zip(df_month['Tanggal'].dt.day, df_month['Net']))
+                
+                z_data, text_data, hover_data = [], [], []
+                
+                for week in cal:
+                    z_week, t_week, h_week = [], [], []
+                    for day in week:
+                        if day == 0:
+                            z_week.append(None) # Slot kosong di kalender
+                            t_week.append("")
+                            h_week.append("")
+                        else:
+                            val = net_dict.get(day, 0)
+                            z_week.append(val)
+                            t_week.append(str(day))
+                            tanda = "+" if val > 0 else ""
+                            h_week.append(f"Tanggal {day}<br>Net Cashflow: {tanda}Rp {val:,.0f}")
+                            
+                    z_data.append(z_week)
+                    text_data.append(t_week)
+                    hover_data.append(h_week)
+
+                # Visualisasi ala kalender asli menggunakan Plotly Graph Objects
+                fig_cal = go.Figure(data=go.Heatmap(
+                    z=z_data,
+                    text=text_data,
+                    texttemplate="<b>%{text}</b>",
+                    textfont={"size": 16},
+                    customdata=hover_data,
+                    hovertemplate="%{customdata}<extra></extra>",
+                    x=['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'],
+                    y=[f'W{i}' for i in range(1, len(cal)+1)],
+                    colorscale=[[0.0, '#f43f5e'], [0.5, '#f59e0b'], [1.0, '#10b981']], # Merah (Minus) -> Oranye (Netral) -> Hijau (Plus)
+                    zmid=0, # Mengunci nilai 0 di tengah warna (Oranye)
+                    showscale=True,
+                    xgap=4, # Jarak horizontal kotak kalender
+                    ygap=4  # Jarak vertikal kotak kalender
+                ))
+                
+                nama_bulan = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+                fig_cal.update_layout(
+                    title=dict(text=f"{nama_bulan[latest_month]} {latest_year}", font=dict(size=18, color="#888")),
+                    yaxis=dict(autorange="reversed", showgrid=False, zeroline=False, showticklabels=False), # Balik agar W1 ada di paling atas
+                    xaxis=dict(showgrid=False, zeroline=False, side="top", tickfont=dict(size=14, color="#888")),
+                    height=350,
+                    margin=dict(t=60, b=10, l=10, r=10),
+                    plot_bgcolor='rgba(0,0,0,0)'
                 )
-                fig_heat.update_xaxes(side="top", tickmode="linear", dtick=1)
-                fig_heat.update_layout(height=250, margin=dict(l=0, r=0, t=30, b=0))
-                st.plotly_chart(fig_heat, use_container_width=True)
+                
+                st.plotly_chart(fig_cal, use_container_width=True)
             else:
-                st.info("Belum ada data pengeluaran untuk menampilkan heatmap kalender.")
+                st.info("Belum ada data cashflow untuk menampilkan kalender.")
 
         else: st.info(f"Tidak ada pengeluaran di periode {filter_waktu}.")
     else: st.info("Belum ada data.")
