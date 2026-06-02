@@ -4,6 +4,7 @@ import gspread
 import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta
+from streamlit_option_menu import option_menu # Library baru untuk menu estetik
 
 # --- PENGATURAN HALAMAN WEB ---
 st.set_page_config(page_title="Financely Dashboard", page_icon="✨", layout="wide", initial_sidebar_state="expanded")
@@ -33,6 +34,9 @@ st.markdown("""
     .card-value { font-size: 32px; font-weight: 900; margin-bottom: 5px; }
     .card-subtext { font-size: 12px; color: gray; }
     h1, h2, h3 { font-weight: 700 !important; }
+    
+    /* Merapikan form di sidebar agar lebih padat */
+    [data-testid="stSidebar"] div.stForm { background-color: transparent; border: none; padding: 0;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -47,37 +51,76 @@ def buat_kartu(icon, judul, nilai, warna_nilai, teks_bawah):
     st.markdown(html, unsafe_allow_html=True)
 
 # ==========================================
-# BAGIAN 1: SIDEBAR (MENU NAVIGASI & FILTER)
+# BAGIAN 1: SIDEBAR (NAVIGASI ESTETIK & QUICK INPUT)
 # ==========================================
 with st.sidebar:
     st.markdown("### 🧭 Main Menu")
-    menu_pilihan = st.radio("Pergi ke halaman:", 
-        ["Dashboard", "Input Data", "Spending", "Tabungan", "Wallet"], 
-        label_visibility="collapsed"
+    
+    # --- MENU NAVIGASI ESTETIK (ALA CASHFLIX) ---
+    menu_pilihan = option_menu(
+        menu_title=None,  
+        options=["Dashboard", "Spending", "Tabungan", "Wallet"], 
+        icons=["house", "cart", "piggy-bank", "wallet2"], # Icon otomatis dari Bootstrap Icons
+        menu_icon="cast", default_index=0,
+        styles={
+            "container": {"padding": "0!important", "background-color": "transparent"},
+            "icon": {"font-size": "16px"}, 
+            "nav-link": {"font-size": "15px", "text-align": "left", "margin":"5px 0px", "font-weight": "600"},
+            "nav-link-selected": {"background-color": "#0ea5e9", "color": "white"},
+        }
     )
     
     st.divider()
     
+    # --- FILTER WAKTU ---
     st.markdown("### 📅 Time Filter")
-    filter_waktu = st.selectbox("Pilih Periode Analisa:", 
-        ["Bulan Ini", "Minggu Ini", "3 Bulan Terakhir", "6 Bulan Terakhir", "Tahun Ini", "Semua Waktu"]
+    filter_waktu = st.selectbox("Periode Analisa:", 
+        ["Bulan Ini", "Minggu Ini", "3 Bulan Terakhir", "6 Bulan Terakhir", "Tahun Ini", "Semua Waktu"],
+        label_visibility="collapsed"
     )
     
     hari_ini = datetime.today().date()
-    if filter_waktu == "Minggu Ini":
-        start_date = hari_ini - timedelta(days=hari_ini.weekday())
-    elif filter_waktu == "Bulan Ini":
-        start_date = hari_ini.replace(day=1)
-    elif filter_waktu == "3 Bulan Terakhir":
-        start_date = hari_ini - timedelta(days=90)
-    elif filter_waktu == "6 Bulan Terakhir":
-        start_date = hari_ini - timedelta(days=180)
-    elif filter_waktu == "Tahun Ini":
-        start_date = hari_ini.replace(month=1, day=1)
-    else: 
-        start_date = hari_ini - timedelta(days=3650) 
+    if filter_waktu == "Minggu Ini": start_date = hari_ini - timedelta(days=hari_ini.weekday())
+    elif filter_waktu == "Bulan Ini": start_date = hari_ini.replace(day=1)
+    elif filter_waktu == "3 Bulan Terakhir": start_date = hari_ini - timedelta(days=90)
+    elif filter_waktu == "6 Bulan Terakhir": start_date = hari_ini - timedelta(days=180)
+    elif filter_waktu == "Tahun Ini": start_date = hari_ini.replace(month=1, day=1)
+    else: start_date = hari_ini - timedelta(days=3650) 
         
     end_date = hari_ini
+    
+    st.divider()
+
+    # --- QUICK INPUT FORM ---
+    st.markdown("### ⚡ Quick Input")
+    input_tipe = st.selectbox("Jenis Transaksi", ["Pengeluaran", "Pemasukan", "Tabungan"])
+    
+    with st.form("form_quick_input", clear_on_submit=True):
+        input_sumber = st.selectbox("Sumber Dana", ["MANDIRI", "JAGO"])
+        
+        if input_tipe == "Pemasukan":
+            kategori_pilihan = ["GITS", "WO", "Freelance", "Lain-lain"]
+        elif input_tipe == "Tabungan":
+            kategori_pilihan = ["Biaya Nikah", "Beli Rumah", "Mobil"]
+        else:
+            kategori_pilihan = ["Makanan", "Transportasi", "Belanja", "Tagihan", "Subscription", "Lain-lain"]
+            
+        input_kategori = st.selectbox("Kategori", kategori_pilihan)
+        input_nominal = st.number_input("Nominal (Rp)", min_value=0, step=10000)
+        
+        # Kolom sejajar untuk Tanggal & Catatan agar hemat tempat di sidebar
+        col_tgl, col_cat = st.columns(2)
+        with col_tgl: input_tanggal = st.date_input("Tanggal", datetime.today())
+        with col_cat: input_catatan = st.text_input("Catatan")
+        
+        tombol_simpan = st.form_submit_button("Simpan Data", use_container_width=True)
+        
+        if tombol_simpan:
+            if input_nominal > 0:
+                worksheet.append_row([input_tanggal.strftime("%Y-%m-%d"), input_tipe, input_sumber, input_kategori, input_nominal, input_catatan])
+                st.toast(f"✅ {input_tipe} Rp {input_nominal:,.0f} berhasil disimpan!", icon="💸") # Notifikasi pop-up estetik
+            else:
+                st.error("Nominal tidak boleh 0")
 
 # ==========================================
 # PROSES DATA DARI GOOGLE SHEETS
@@ -93,10 +136,9 @@ if not df.empty:
     df_filter = df.loc[mask]
 
 # ==========================================
-# HALAMAN 1: DASHBOARD (OVERVIEW)
+# HALAMAN 1: DASHBOARD
 # ==========================================
 if menu_pilihan == "Dashboard":
-    # Header yang meniru desain gambar referensi (Clean & Personal)
     st.markdown("<h1 style='margin-bottom: 0px;'>Good morning, Difa ✨</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color: gray; margin-bottom: 30px;'>This is your finance report</p>", unsafe_allow_html=True)
     
@@ -109,11 +151,9 @@ if menu_pilihan == "Dashboard":
         masuk_filter = df_filter[df_filter['Tipe'] == 'Pemasukan']['Nominal'].sum()
         keluar_filter = df_filter[df_filter['Tipe'] == 'Pengeluaran']['Nominal'].sum()
         
-        # PEMBAGIAN LAYOUT ALA REFERENSI (Kiri 70%, Kanan 30%)
         kolom_kiri, kolom_kanan = st.columns([7, 3])
         
         with kolom_kiri:
-            # 3 Kartu Metrik Utama
             k1, k2, k3 = st.columns([2, 1.5, 1.5])
             with k1: buat_kartu("💳", "MY BALANCE", f"Rp {saldo_aktif:,.0f}", "#0ea5e9", "Sisa kas siap pakai")
             with k2: buat_kartu("📥", "INCOME", f"Rp {masuk_filter:,.0f}", "#22c55e", f"{filter_waktu}")
@@ -122,27 +162,23 @@ if menu_pilihan == "Dashboard":
             st.write("")
             st.subheader("Statistics")
             
-            # Grafik Garis (Trend)
             df_tren = df_filter.groupby(['Tanggal', 'Tipe'])['Nominal'].sum().reset_index()
-            # Hanya menampilkan pemasukan dan pengeluaran di grafik trend agar rapi
             df_tren = df_tren[df_tren['Tipe'].isin(['Pemasukan', 'Pengeluaran'])]
             
             fig_line = px.line(df_tren, x='Tanggal', y='Nominal', color='Tipe', 
                                color_discrete_map={"Pemasukan": "#22c55e", "Pengeluaran": "#ef4444"}, markers=True)
-            fig_line.update_traces(line_shape='spline', line=dict(width=3)) # Efek garis melengkung
+            fig_line.update_traces(line_shape='spline', line=dict(width=3))
             fig_line.update_layout(xaxis_title="", yaxis_title="", height=320,
                                    legend_title="", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
                                    margin=dict(l=0, r=0, t=10, b=0))
             st.plotly_chart(fig_line, use_container_width=True)
 
         with kolom_kanan:
-            # Kartu Tabungan diselipkan di kanan atas
             buat_kartu("💰", "TOTAL SAVINGS", f"Rp {total_tabungan_all:,.0f}", "#8b5cf6", "Total aset tabungan")
             
             st.write("")
             st.subheader("All expenses")
             
-            # Donut Chart
             df_pengeluaran = df_filter[df_filter['Tipe'] == 'Pengeluaran']
             if not df_pengeluaran.empty:
                 fig_pie = px.pie(df_pengeluaran, values='Nominal', names='Kategori', hole=0.6, 
@@ -154,45 +190,16 @@ if menu_pilihan == "Dashboard":
             else:
                 st.info("No expenses in this period.")
 
-        # Tabel Riwayat Transaksi (Lebar Penuh di Bawah)
         st.write("")
         st.subheader("Transaction and invoices")
         st.caption("Stay update on recent financial activities")
         st.dataframe(df_filter.iloc[::-1], use_container_width=True, hide_index=True)
         
     else:
-        st.info("Belum ada data. Silakan ke menu 'Input Data'.")
+        st.info("Belum ada data. Silakan isi form di sebelah kiri.")
 
 # ==========================================
-# HALAMAN 2: INPUT DATA
-# ==========================================
-elif menu_pilihan == "Input Data":
-    st.markdown("<h2>📝 Form Input Transaksi</h2>", unsafe_allow_html=True)
-    with st.container(border=True):
-        input_tipe = st.radio("Jenis Transaksi", ["Pengeluaran", "Pemasukan", "Tabungan"], horizontal=True)
-        st.divider()
-        with st.form("form_input", clear_on_submit=True):
-            input_sumber = st.selectbox("Sumber Dana", ["MANDIRI", "JAGO"])
-            if input_tipe == "Pemasukan":
-                kategori_pilihan = ["GITS", "WO", "Freelance", "Lain-lain"]
-            elif input_tipe == "Tabungan":
-                kategori_pilihan = ["Biaya Nikah", "Beli Rumah", "Mobil"]
-            else:
-                kategori_pilihan = ["Makanan", "Transportasi", "Belanja", "Tagihan", "Subscription", "Lain-lain"]
-                
-            input_kategori = st.selectbox("Kategori", kategori_pilihan)
-            input_tanggal = st.date_input("Tanggal", datetime.today())
-            input_nominal = st.number_input("Nominal (Rp)", min_value=0, step=10000)
-            input_catatan = st.text_input("Catatan")
-            tombol_simpan = st.form_submit_button("Simpan ke Database")
-            
-            if tombol_simpan and input_nominal > 0:
-                worksheet.append_row([input_tanggal.strftime("%Y-%m-%d"), input_tipe, input_sumber, input_kategori, input_nominal, input_catatan])
-                st.success("✅ Data berhasil disimpan!")
-                st.balloons()
-
-# ==========================================
-# HALAMAN 3: SPENDING
+# HALAMAN 2: SPENDING
 # ==========================================
 elif menu_pilihan == "Spending":
     st.markdown("<h2>🛒 Spending Analysis</h2>", unsafe_allow_html=True)
@@ -215,7 +222,7 @@ elif menu_pilihan == "Spending":
         st.info("Belum ada data.")
 
 # ==========================================
-# HALAMAN 4: TABUNGAN
+# HALAMAN 3: TABUNGAN
 # ==========================================
 elif menu_pilihan == "Tabungan":
     st.markdown("<h2>🎯 Savings & Goals Tracker</h2>", unsafe_allow_html=True)
@@ -246,7 +253,7 @@ elif menu_pilihan == "Tabungan":
         st.info("Belum ada tabungan yang tercatat.")
 
 # ==========================================
-# HALAMAN 5: WALLET
+# HALAMAN 4: WALLET
 # ==========================================
 elif menu_pilihan == "Wallet":
     st.markdown("<h2>🏛️ Wallet & Accounts</h2>", unsafe_allow_html=True)
