@@ -14,12 +14,28 @@ gc = gspread.service_account_from_dict(kredensial)
 sheet_file = gc.open("KeuanganKu")
 worksheet = sheet_file.sheet1 
 
-# --- GAYA DESAIN CUSTOM (CSS) ADAPTIF ---
-# Warna paksaan dihapus agar font otomatis putih di mode gelap dan hitam di mode terang
+# --- GAYA DESAIN CUSTOM (CSS) PREMIUM & ADAPTIF ---
 st.markdown("""
     <style>
+    /* Mengubah desain kartu/kotak metrik angka */
+    [data-testid="stMetric"] {
+        background-color: var(--secondary-background-color);
+        border-radius: 15px;
+        padding: 20px 25px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        border: 1px solid rgba(128, 128, 128, 0.1);
+        transition: all 0.3s ease;
+    }
+    /* Efek animasi saat mouse diarahkan ke kotak (hanya terlihat di laptop) */
+    [data-testid="stMetric"]:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        border-color: #818cf8;
+    }
     div[data-testid="stMetricValue"] { font-size: 28px; font-weight: 700; }
-    div[data-testid="stMetricLabel"] { font-size: 14px; font-weight: 500; }
+    div[data-testid="stMetricLabel"] { font-size: 15px; font-weight: 600; opacity: 0.8; }
+    
+    /* Mempercantik Tab Menu */
     .stTabs [data-baseweb="tab"] { font-size: 16px; font-weight: 600; padding: 12px 24px; }
     </style>
 """, unsafe_allow_html=True)
@@ -53,35 +69,30 @@ with tab_dashboard:
         keluar_jago = df[(df['Tipe'] == 'Pengeluaran') & (df['Sumber'] == 'JAGO')]['Nominal'].sum()
         saldo_jago = masuk_jago - keluar_jago
 
-        # --- KARTU METRIK UTAMA ---
+        # --- KARTU METRIK UTAMA (Desain Baru Tanpa Bingkai Dobel) ---
         k1, k2, k3 = st.columns(3)
         with k1:
-            with st.container(border=True):
-                st.metric(label="💰 TOTAL SALDO GABUNGAN", value=f"Rp {saldo_total:,.0f}")
+            st.metric(label="💰 TOTAL SALDO GABUNGAN", value=f"Rp {saldo_total:,.0f}")
         with k2:
-            with st.container(border=True):
-                st.metric(label="📥 TOTAL PEMASUKAN", value=f"Rp {total_masuk:,.0f}")
+            st.metric(label="📥 TOTAL PEMASUKAN", value=f"Rp {total_masuk:,.0f}")
         with k3:
-            with st.container(border=True):
-                st.metric(label="📤 TOTAL PENGELUARAN", value=f"Rp {total_keluar:,.0f}")
+            st.metric(label="📤 TOTAL PENGELUARAN", value=f"Rp {total_keluar:,.0f}")
                 
         # --- SALDO PER REKENING ---
-        st.write("") # Memberi sedikit jarak
+        st.write("") 
         st.subheader("💳 Kondisi Kas per Rekening", divider="gray")
         
         g1, g2 = st.columns(2)
         with g1:
-            with st.container(border=True):
-                st.metric(label="Bank Mandiri", value=f"Rp {saldo_mandiri:,.0f}", delta="Akun Utama")
+            st.metric(label="Bank Mandiri", value=f"Rp {saldo_mandiri:,.0f}", delta="Akun Utama")
         with g2:
-            with st.container(border=True):
-                st.metric(label="Kantong Bank Jago", value=f"Rp {saldo_jago:,.0f}", delta="Akun Operasional")
+            st.metric(label="Kantong Bank Jago", value=f"Rp {saldo_jago:,.0f}", delta="Akun Operasional")
                 
         st.write("")
         
         # --- BAGIAN GRAFIK ESTETIK ---
         kolom_grafik1, kolom_grafik2 = st.columns(2)
-        warna_premium = ["#818cf8", "#34d399", "#2dd4bf", "#fb7185", "#fbbf24", "#a78bfa"] # Warna pastel yang lebih terang untuk mode gelap
+        warna_premium = ["#818cf8", "#34d399", "#2dd4bf", "#fb7185", "#fbbf24", "#a78bfa"] 
         
         with kolom_grafik1:
             df_pengeluaran = df[df['Tipe'] == 'Pengeluaran']
@@ -107,10 +118,11 @@ with tab_dashboard:
                 )
                 st.plotly_chart(grafik_bar, use_container_width=True)
                 
-        # --- TABEL RIWAYAT TRANSAKSI ---
+        # --- TABEL RIWAYAT TRANSAKSI (Tampilan Bersih Tanpa Index) ---
         st.write("")
         st.subheader("📋 Jurnal Transaksi Terbaru", divider="gray")
-        st.dataframe(df.iloc[::-1], use_container_width=True)
+        # hide_index=True ditambahkan di sini agar tabel lebih rapi
+        st.dataframe(df.iloc[::-1], use_container_width=True, hide_index=True)
         
     else:
         st.info("Database masih kosong. Sila buka tab 'Catat Transaksi' untuk memulai mengisi keuangan Anda!")
