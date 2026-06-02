@@ -1,121 +1,116 @@
 # --- MENGIMPOR LIBRARY YANG DIBUTUHKAN ---
-import streamlit as st # Library utama untuk membuat tampilan web
-import gspread # Library untuk membaca dan menulis ke Google Sheets
-import pandas as pd # Library untuk mengolah data tabel
-import plotly.express as px # Library untuk membuat grafik interaktif yang cantik
-from datetime import datetime # Library untuk mengambil tanggal hari ini otomatis
+import streamlit as st
+import gspread
+import pandas as pd
+import plotly.express as px
+from datetime import datetime
 
 # --- PENGATURAN HALAMAN WEB ---
-# Mengatur nama tab di browser dan membuat tampilan lebar (wide) agar enak di laptop
 st.set_page_config(page_title="Dashboard Keuangan", page_icon="💰", layout="wide")
 
 # --- KONEKSI KE GOOGLE SHEETS ---
-# Mengambil data kunci rahasia (JSON) dari sistem penyimpanan rahasia Streamlit
-# Nanti kita akan mengatur ini di tahap Deploy (Tahap C)
 kredensial = st.secrets["gcp_service_account"]
-
-# Menghubungkan script ini ke akun Google Cloud menggunakan kredensial tadi
 gc = gspread.service_account_from_dict(kredensial)
-
-# Membuka file spreadsheet yang bernama "KeuanganKu"
 sheet_file = gc.open("KeuanganKu")
-
-# Memilih tab pertama (Sheet1) yang ada di dalam file tersebut
 worksheet = sheet_file.sheet1 
 
 # --- JUDUL APLIKASI ---
-st.title("💸 Pencatatan Keuangan Pribadi")
+st.title("💸 Pencatatan Keuangan Pribadi V2")
 
-# --- MEMBUAT DUA TAB: UNTUK INPUT (HP) & DASHBOARD (LAPTOP) ---
-# Membagi halaman menjadi 2 bagian yang bisa diklik
-tab_input, tab_dashboard = st.tabs(["📝 Input Pengeluaran", "📊 Dashboard Analisa"])
+# --- MEMBUAT DUA TAB ---
+tab_input, tab_dashboard = st.tabs(["📝 Input Transaksi", "📊 Dashboard Analisa"])
 
-# --- BAGIAN 1: TAB INPUT PENGELUARAN ---
+# --- BAGIAN 1: TAB INPUT TRANSAKSI ---
 with tab_input:
-    st.subheader("Catat Pengeluaran Baru")
+    st.subheader("Catat Transaksi Baru")
+    
+    # KUNCI PENTING: Pilihan Tipe Transaksi diletakkan di LUAR form
+    # Agar pilihan Kategori di bawahnya bisa berubah otomatis saat Tipe diklik
+    input_tipe = st.radio("Pilih Jenis Transaksi:", ["Pengeluaran", "Pemasukan"], horizontal=True)
+    
+    # Logika untuk mengubah pilihan kategori berdasarkan Tipe Transaksi
+    if input_tipe == "Pengeluaran":
+        kategori_pilihan = ["Makanan", "Transportasi", "Belanja", "Tagihan", "Subscription", "Lain-lain"]
+    else:
+        # Jika Pemasukan yang dipilih, tampilkan kategori ini
+        kategori_pilihan = ["GITS", "WO", "Freelance", "Lain-lain"]
     
     # Membuat form inputan
-    with st.form("form_pengeluaran", clear_on_submit=True):
-        # Input tanggal, defaultnya adalah hari ini
+    with st.form("form_transaksi", clear_on_submit=True):
         input_tanggal = st.date_input("Pilih Tanggal", datetime.today())
         
-        # Pilihan kategori berupa dropdown (bisa ditambah/dikurangi sesuai kebutuhan)
-        kategori_pilihan = ["Makanan", "Transportasi", "Belanja", "Tagihan", "Lain-lain"]
+        # Dropdown kategori yang isinya sudah disesuaikan dengan logika di atas
         input_kategori = st.selectbox("Kategori", kategori_pilihan)
         
-        # Input angka untuk nominal uang, step=1000 agar naiknya per seribu perak
         input_nominal = st.number_input("Nominal (Rp)", min_value=0, step=1000)
-        
-        # Input teks bebas untuk catatan
         input_catatan = st.text_input("Catatan Tambahan")
-        
-        # Tombol untuk menyimpan data
         tombol_simpan = st.form_submit_button("Simpan Data")
         
-        # Logika ketika tombol ditekan
         if tombol_simpan:
-            if input_nominal > 0: # Memastikan nominal tidak nol
-                # Mengubah format tanggal menjadi teks agar bisa masuk ke Excel/Sheets
+            if input_nominal > 0:
                 tanggal_teks = input_tanggal.strftime("%Y-%m-%d")
                 
-                # Menyiapkan satu baris data baru untuk dikirim ke Google Sheets
-                baris_baru = [tanggal_teks, input_kategori, input_nominal, input_catatan]
-                
-                # Perintah untuk menulis baris baru tersebut ke posisi terbawah di Google Sheets
+                # Menambahkan 'input_tipe' ke dalam data yang akan dikirim ke Sheets
+                # Format susunan kolom: Tanggal, Tipe, Kategori, Nominal, Catatan
+                baris_baru = [tanggal_teks, input_tipe, input_kategori, input_nominal, input_catatan]
                 worksheet.append_row(baris_baru)
                 
-                # Memunculkan pesan sukses berwarna hijau
-                st.success("Data berhasil disimpan ke Google Sheets!")
+                st.success(f"Data {input_tipe} berhasil disimpan ke Google Sheets!")
             else:
-                # Memunculkan pesan peringatan jika nominal masih 0
-                st.warning("Nominal pengeluaran tidak boleh 0.")
+                st.warning("Nominal transaksi tidak boleh 0.")
 
 # --- BAGIAN 2: TAB DASHBOARD ANALISA ---
 with tab_dashboard:
     st.subheader("Ringkasan Keuangan Anda")
     
-    # Membaca seluruh data dari Google Sheets dan merubahnya menjadi bentuk tabel (DataFrame)
     data_semua = worksheet.get_all_records()
     
-    # Mengecek apakah Google Sheets sudah ada isinya atau masih kosong
     if len(data_semua) > 0:
-        # Jika ada isinya, ubah data mentah menjadi tabel yang mudah diolah oleh Python (Pandas)
         df = pd.DataFrame(data_semua)
-        
-        # Mengubah kolom 'Nominal' menjadi tipe angka agar bisa dijumlahkan
         df['Nominal'] = pd.to_numeric(df['Nominal'])
         
-        # Menghitung total semua pengeluaran dari seluruh baris
-        total_pengeluaran = df['Nominal'].sum()
+        # Memisahkan data Pemasukan dan Pengeluaran
+        # Perhatikan: pastikan huruf besar/kecil di Google Sheets sama persis ("Pemasukan" & "Pengeluaran")
+        df_pemasukan = df[df['Tipe'] == 'Pemasukan']
+        df_pengeluaran = df[df['Tipe'] == 'Pengeluaran']
         
-        # Menampilkan kartu informasi (Metric) yang menunjukkan total pengeluaran
-        # Format {:,.0f} digunakan agar angkanya punya pemisah ribuan (contoh: 10,000)
-        st.metric(label="Total Pengeluaran", value=f"Rp {total_pengeluaran:,.0f}")
+        # Menghitung total masing-masing
+        total_pemasukan = df_pemasukan['Nominal'].sum()
+        total_pengeluaran = df_pengeluaran['Nominal'].sum()
         
-        # Membuat garis pemisah
+        # Menghitung sisa saldo (Uang yang dimiliki)
+        sisa_saldo = total_pemasukan - total_pengeluaran
+        
+        # Menampilkan 3 Kartu Informasi (Metrics) berdampingan
+        kolom_metrik1, kolom_metrik2, kolom_metrik3 = st.columns(3)
+        kolom_metrik1.metric(label="Total Pemasukan", value=f"Rp {total_pemasukan:,.0f}")
+        kolom_metrik2.metric(label="Total Pengeluaran", value=f"Rp {total_pengeluaran:,.0f}")
+        kolom_metrik3.metric(label="Saldo Saat Ini", value=f"Rp {sisa_saldo:,.0f}")
+        
         st.divider()
         
-        # Menyiapkan kolom agar grafik bisa bersebelahan jika layarnya lebar
-        kolom1, kolom2 = st.columns(2)
+        # Menampilkan grafik pie berdampingan
+        kolom_grafik1, kolom_grafik2 = st.columns(2)
         
-        with kolom1:
-            # Membuat Pie Chart berdasarkan Kategori dan jumlah Nominalnya
-            grafik_pie = px.pie(df, values='Nominal', names='Kategori', title="Proporsi per Kategori")
-            # Menampilkan grafik pie di halaman web
-            st.plotly_chart(grafik_pie, use_container_width=True)
-            
-        with kolom2:
-            # Membuat tabel ringkasan: menjumlahkan total nominal untuk masing-masing kategori
-            ringkasan_kategori = df.groupby('Kategori')['Nominal'].sum().reset_index()
-            # Membuat Bar Chart berdasarkan ringkasan tersebut
-            grafik_bar = px.bar(ringkasan_kategori, x='Kategori', y='Nominal', title="Total per Kategori", text_auto=True)
-            # Menampilkan grafik bar di halaman web
-            st.plotly_chart(grafik_bar, use_container_width=True)
-            
-        # Menampilkan data mentahnya dalam bentuk tabel di bawah grafik
-        st.write("Riwayat Transaksi Terakhir:")
-        st.dataframe(df, use_container_width=True)
+        with kolom_grafik1:
+            st.markdown("**Distribusi Pengeluaran**")
+            if not df_pengeluaran.empty:
+                grafik_pie_out = px.pie(df_pengeluaran, values='Nominal', names='Kategori', hole=0.4)
+                st.plotly_chart(grafik_pie_out, use_container_width=True)
+            else:
+                st.info("Belum ada data pengeluaran.")
+                
+        with kolom_grafik2:
+            st.markdown("**Sumber Pemasukan**")
+            if not df_pemasukan.empty:
+                grafik_pie_in = px.pie(df_pemasukan, values='Nominal', names='Kategori', hole=0.4)
+                st.plotly_chart(grafik_pie_in, use_container_width=True)
+            else:
+                st.info("Belum ada data pemasukan.")
+        
+        # Menampilkan tabel data mentah yang diurutkan dari yang terbaru
+        st.write("Riwayat Transaksi Keseluruhan:")
+        st.dataframe(df.sort_values(by="Tanggal", ascending=False), use_container_width=True)
         
     else:
-        # Jika Google Sheets masih kosong (hanya ada header), tampilkan pesan ini
-        st.info("Belum ada data pengeluaran. Silakan isi di tab 'Input Pengeluaran'.")
+        st.info("Belum ada data. Silakan isi di tab 'Input Transaksi'.")
