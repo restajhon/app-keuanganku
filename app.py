@@ -70,11 +70,10 @@ with st.sidebar:
     
     st.divider()
     
-    # --- UPDATE: PENAMBAHAN OPSI 'HARI INI' ---
     st.markdown("### 📅 Time Filter")
     filter_waktu = st.selectbox("Periode Analisa:", 
         ["Hari Ini", "Bulan Ini", "Minggu Ini", "3 Bulan Terakhir", "6 Bulan Terakhir", "Tahun Ini", "Semua Waktu"],
-        label_visibility="collapsed", index=1 # Defaultnya "Bulan Ini"
+        label_visibility="collapsed", index=1
     )
     
     hari_ini = datetime.today().date()
@@ -193,7 +192,18 @@ if menu_pilihan == "Dashboard":
         st.write("")
         st.subheader("Transaction and invoices")
         st.caption("Stay update on recent financial activities")
-        st.dataframe(df_filter.iloc[::-1], use_container_width=True, hide_index=True)
+        
+        # --- FITUR BARU: FILTER TABEL INTERAKTIF ---
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            pilihan_tipe = st.multiselect("Tampilkan Tipe:", ["Pemasukan", "Pengeluaran", "Tabungan"], default=["Pemasukan", "Pengeluaran", "Tabungan"])
+        with col_f2:
+            pilihan_sumber = st.multiselect("Tampilkan Sumber:", ["MANDIRI", "JAGO"], default=["MANDIRI", "JAGO"])
+            
+        # Terapkan filter ke dataframe sebelum ditampilkan
+        df_tabel = df_filter[(df_filter['Tipe'].isin(pilihan_tipe)) & (df_filter['Sumber'].isin(pilihan_sumber))]
+        
+        st.dataframe(df_tabel.iloc[::-1], use_container_width=True, hide_index=True)
         
     else:
         st.info("Belum ada data. Silakan isi form di sebelah kiri.")
@@ -288,14 +298,13 @@ elif menu_pilihan == "Tabungan":
         st.info("Belum ada tabungan yang tercatat.")
 
 # ==========================================
-# HALAMAN 4: WALLET & ACCOUNTS (UPDATE SUMBER PEMASUKAN)
+# HALAMAN 4: WALLET & ACCOUNTS
 # ==========================================
 elif menu_pilihan == "Wallet":
     st.markdown("<h1 style='margin-bottom: 0px;'>🏛️ Wallet & Accounts</h1>", unsafe_allow_html=True)
     st.markdown("<p style='color: gray; margin-bottom: 30px;'>Kondisi kas riil dan analisis sumber pendapatan Anda.</p>", unsafe_allow_html=True)
     
     if not df.empty:
-        # --- PERHITUNGAN SALDO ALL TIME ---
         masuk_mandiri = df[(df['Tipe'] == 'Pemasukan') & (df['Sumber'] == 'MANDIRI')]['Nominal'].sum()
         keluar_mandiri = df[(df['Tipe'] != 'Pemasukan') & (df['Sumber'] == 'MANDIRI')]['Nominal'].sum()
         sisa_mandiri = masuk_mandiri - keluar_mandiri
@@ -311,9 +320,7 @@ elif menu_pilihan == "Wallet":
             
         st.divider()
         
-        # --- UPDATE: RINCIAN SUMBER PEMASUKAN TERFILTER ---
         st.markdown(f"### 💼 Sumber Pemasukan ({filter_waktu})")
-        
         masuk_gits = df_filter[(df_filter['Tipe'] == 'Pemasukan') & (df_filter['Kategori'] == 'GITS')]['Nominal'].sum()
         masuk_wo = df_filter[(df_filter['Tipe'] == 'Pemasukan') & (df_filter['Kategori'] == 'WO')]['Nominal'].sum()
         masuk_freelance = df_filter[(df_filter['Tipe'] == 'Pemasukan') & (df_filter['Kategori'] == 'Freelance')]['Nominal'].sum()
@@ -326,6 +333,14 @@ elif menu_pilihan == "Wallet":
         st.divider()
         
         st.markdown("#### 📋 History Transaksi")
-        st.dataframe(df_filter.iloc[::-1], use_container_width=True, hide_index=True)
+        # --- FITUR BARU: FILTER TABEL DI WALLET JUGA ---
+        col_w1, col_w2 = st.columns(2)
+        with col_w1:
+            pil_tipe = st.multiselect("Tampilkan Tipe:", ["Pemasukan", "Pengeluaran", "Tabungan"], default=["Pemasukan", "Pengeluaran", "Tabungan"], key="w_tipe")
+        with col_w2:
+            pil_sumber = st.multiselect("Tampilkan Sumber:", ["MANDIRI", "JAGO"], default=["MANDIRI", "JAGO"], key="w_sumber")
+            
+        df_tabel_wallet = df_filter[(df_filter['Tipe'].isin(pil_tipe)) & (df_filter['Sumber'].isin(pil_sumber))]
+        st.dataframe(df_tabel_wallet.iloc[::-1], use_container_width=True, hide_index=True)
     else:
         st.info("Belum ada data.")
