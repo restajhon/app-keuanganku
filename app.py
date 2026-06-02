@@ -167,7 +167,7 @@ CHART_COLORS = ["#0ea5e9", "#f43f5e", "#8b5cf6", "#10b981", "#f59e0b", "#ec4899"
 # HALAMAN 1: DASHBOARD
 # ==========================================
 if menu_pilihan == "Dashboard":
-    buat_banner("Good morning, Difa ✨", "Corporate & MUA Financial Hub — Your daily cashflow overview.")
+    buat_banner("Hi, Resta", "Budak Agency & Freelance Financial Hub — Your daily cashflow overview.")
     
     if not df.empty:
         total_pemasukan_all = df[df['Tipe'] == 'Pemasukan']['Nominal'].sum()
@@ -288,29 +288,43 @@ elif menu_pilihan == "Spending":
             
             st.write("---")
             
-            # --- FITUR BARU UPDATE: CALENDAR CASHFLOW HEATMAP ---
+            # --- FITUR BARU UPDATE: CALENDAR CASHFLOW HEATMAP (DENGAN DROPDOWN BULAN) ---
             st.markdown("### 🗓️ Calendar Cashflow Heatmap")
             
-            # Menghitung net cashflow (Pemasukan - Pengeluaran) per hari
-            df_daily = df_filter[df_filter['Tipe'].isin(['Pemasukan', 'Pengeluaran'])].groupby(['Tanggal', 'Tipe'])['Nominal'].sum().unstack(fill_value=0).reset_index()
+            # Menggunakan dataframe utama 'df' agar kalender bisa menampilkan semua bulan
+            df_daily_all = df[df['Tipe'].isin(['Pemasukan', 'Pengeluaran'])].copy()
             
-            for col in ['Pemasukan', 'Pengeluaran']:
-                if col not in df_daily.columns:
-                    df_daily[col] = 0
-                    
-            df_daily['Net'] = df_daily['Pemasukan'] - df_daily['Pengeluaran']
-            df_daily['Tanggal'] = pd.to_datetime(df_daily['Tanggal'])
-            
-            if not df_daily.empty:
-                # Mengambil bulan & tahun paling terkini dari filter data
-                latest_date = df_daily['Tanggal'].max()
-                latest_month = latest_date.month
-                latest_year = latest_date.year
+            if not df_daily_all.empty:
+                df_daily_agg = df_daily_all.groupby(['Tanggal', 'Tipe'])['Nominal'].sum().unstack(fill_value=0).reset_index()
                 
-                df_month = df_daily[(df_daily['Tanggal'].dt.month == latest_month) & (df_daily['Tanggal'].dt.year == latest_year)]
+                for col in ['Pemasukan', 'Pengeluaran']:
+                    if col not in df_daily_agg.columns:
+                        df_daily_agg[col] = 0
+                        
+                df_daily_agg['Net'] = df_daily_agg['Pemasukan'] - df_daily_agg['Pengeluaran']
+                df_daily_agg['Tanggal'] = pd.to_datetime(df_daily_agg['Tanggal'])
                 
-                # Membuat matriks kalender bulan tersebut
-                cal = calendar.monthcalendar(latest_year, latest_month)
+                nama_bulan = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+                
+                # Mengambil list Tahun-Bulan yang tersedia dari data
+                df_daily_agg['YearMonth'] = df_daily_agg['Tanggal'].dt.to_period('M')
+                list_ym = sorted(df_daily_agg['YearMonth'].unique().astype(str), reverse=True)
+                
+                opsi_label = [f"{nama_bulan[int(ym.split('-')[1])]} {ym.split('-')[0]}" for ym in list_ym]
+                dict_opsi = dict(zip(opsi_label, list_ym))
+                
+                col_sel1, col_sel2 = st.columns([1, 3])
+                with col_sel1:
+                    bulan_pilihan = st.selectbox("Pilih Bulan:", opsi_label)
+                
+                # Mendapatkan angka bulan dan tahun dari dropdown
+                ym_terpilih = dict_opsi[bulan_pilihan]
+                sel_year, sel_month = int(ym_terpilih.split('-')[0]), int(ym_terpilih.split('-')[1])
+                
+                df_month = df_daily_agg[(df_daily_agg['Tanggal'].dt.year == sel_year) & (df_daily_agg['Tanggal'].dt.month == sel_month)]
+                
+                # Membuat matriks kalender
+                cal = calendar.monthcalendar(sel_year, sel_month)
                 net_dict = dict(zip(df_month['Tanggal'].dt.day, df_month['Net']))
                 
                 z_data, text_data, hover_data = [], [], []
@@ -319,7 +333,7 @@ elif menu_pilihan == "Spending":
                     z_week, t_week, h_week = [], [], []
                     for day in week:
                         if day == 0:
-                            z_week.append(None) # Slot kosong di kalender
+                            z_week.append(None) 
                             t_week.append("")
                             h_week.append("")
                         else:
@@ -333,7 +347,6 @@ elif menu_pilihan == "Spending":
                     text_data.append(t_week)
                     hover_data.append(h_week)
 
-                # Visualisasi ala kalender asli menggunakan Plotly Graph Objects
                 fig_cal = go.Figure(data=go.Heatmap(
                     z=z_data,
                     text=text_data,
@@ -343,17 +356,15 @@ elif menu_pilihan == "Spending":
                     hovertemplate="%{customdata}<extra></extra>",
                     x=['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'],
                     y=[f'W{i}' for i in range(1, len(cal)+1)],
-                    colorscale=[[0.0, '#f43f5e'], [0.5, '#f59e0b'], [1.0, '#10b981']], # Merah (Minus) -> Oranye (Netral) -> Hijau (Plus)
-                    zmid=0, # Mengunci nilai 0 di tengah warna (Oranye)
+                    colorscale=[[0.0, '#f43f5e'], [0.5, '#f59e0b'], [1.0, '#10b981']], # Merah -> Oranye -> Hijau
+                    zmid=0, 
                     showscale=True,
-                    xgap=4, # Jarak horizontal kotak kalender
-                    ygap=4  # Jarak vertikal kotak kalender
+                    xgap=4, ygap=4
                 ))
                 
-                nama_bulan = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
                 fig_cal.update_layout(
-                    title=dict(text=f"{nama_bulan[latest_month]} {latest_year}", font=dict(size=18, color="#888")),
-                    yaxis=dict(autorange="reversed", showgrid=False, zeroline=False, showticklabels=False), # Balik agar W1 ada di paling atas
+                    title=dict(text=f"Kalender {bulan_pilihan}", font=dict(size=18, color="#888")),
+                    yaxis=dict(autorange="reversed", showgrid=False, zeroline=False, showticklabels=False), 
                     xaxis=dict(showgrid=False, zeroline=False, side="top", tickfont=dict(size=14, color="#888")),
                     height=350,
                     margin=dict(t=60, b=10, l=10, r=10),
@@ -460,7 +471,7 @@ elif menu_pilihan == "Wallet":
         
         k1, k2, k3 = st.columns(3)
         with k1: buat_kartu("🏢", "CORPORATE (GITS)", f"Rp {masuk_gits:,.0f}", "#10b981", "Pendapatan Profesional Utama")
-        with k2: buat_kartu("💍", "WEDDING ORGANIZER", f"Rp {masuk_wo:,.0f}", "#ec4899", "Pendapatan MUA & Project")
+        with k2: buat_kartu("💍", "WEDDING ORGANIZER", f"Rp {masuk_wo:,.0f}", "#ec4899", "Pendapatan Wedding")
         with k3: buat_kartu("💻", "FREELANCE", f"Rp {masuk_freelance:,.0f}", "#8b5cf6", "Pendapatan Sampingan")
             
         st.write("")
