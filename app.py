@@ -16,9 +16,9 @@ sheet_file = gc.open("KeuanganKu")
 worksheet = sheet_file.sheet1 
 
 # --- TARGET TABUNGAN IMPIAN ---
-TARGET_NIKAH = 250000000
-TARGET_RUMAH = 1500000000
-TARGET_MOBIL = 300000000
+TARGET_NIKAH = 50000000
+TARGET_RUMAH = 150000000
+TARGET_MOBIL = 80000000
 
 # --- GAYA DESAIN CUSTOM (CSS) ---
 st.markdown("""
@@ -70,14 +70,16 @@ with st.sidebar:
     
     st.divider()
     
+    # --- UPDATE: PENAMBAHAN OPSI 'HARI INI' ---
     st.markdown("### 📅 Time Filter")
     filter_waktu = st.selectbox("Periode Analisa:", 
-        ["Bulan Ini", "Minggu Ini", "3 Bulan Terakhir", "6 Bulan Terakhir", "Tahun Ini", "Semua Waktu"],
-        label_visibility="collapsed"
+        ["Hari Ini", "Bulan Ini", "Minggu Ini", "3 Bulan Terakhir", "6 Bulan Terakhir", "Tahun Ini", "Semua Waktu"],
+        label_visibility="collapsed", index=1 # Defaultnya "Bulan Ini"
     )
     
     hari_ini = datetime.today().date()
-    if filter_waktu == "Minggu Ini": start_date = hari_ini - timedelta(days=hari_ini.weekday())
+    if filter_waktu == "Hari Ini": start_date = hari_ini
+    elif filter_waktu == "Minggu Ini": start_date = hari_ini - timedelta(days=hari_ini.weekday())
     elif filter_waktu == "Bulan Ini": start_date = hari_ini.replace(day=1)
     elif filter_waktu == "3 Bulan Terakhir": start_date = hari_ini - timedelta(days=90)
     elif filter_waktu == "6 Bulan Terakhir": start_date = hari_ini - timedelta(days=180)
@@ -160,13 +162,16 @@ if menu_pilihan == "Dashboard":
             df_tren = df_filter.groupby(['Tanggal', 'Tipe'])['Nominal'].sum().reset_index()
             df_tren = df_tren[df_tren['Tipe'].isin(['Pemasukan', 'Pengeluaran'])]
             
-            fig_line = px.line(df_tren, x='Tanggal', y='Nominal', color='Tipe', 
-                               color_discrete_map={"Pemasukan": "#22c55e", "Pengeluaran": "#ef4444"}, markers=True)
-            fig_line.update_traces(line_shape='spline', line=dict(width=3))
-            fig_line.update_layout(xaxis_title="", yaxis_title="", height=320,
-                                   legend_title="", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-                                   margin=dict(l=0, r=0, t=10, b=0))
-            st.plotly_chart(fig_line, use_container_width=True)
+            if not df_tren.empty:
+                fig_line = px.line(df_tren, x='Tanggal', y='Nominal', color='Tipe', 
+                                   color_discrete_map={"Pemasukan": "#22c55e", "Pengeluaran": "#ef4444"}, markers=True)
+                fig_line.update_traces(line_shape='spline', line=dict(width=3))
+                fig_line.update_layout(xaxis_title="", yaxis_title="", height=320,
+                                       legend_title="", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+                                       margin=dict(l=0, r=0, t=10, b=0))
+                st.plotly_chart(fig_line, use_container_width=True)
+            else:
+                st.info(f"Belum ada data trend untuk {filter_waktu}.")
 
         with kolom_kanan:
             buat_kartu("💰", "TOTAL SAVINGS", f"Rp {total_tabungan_all:,.0f}", "#8b5cf6", "Total aset tabungan")
@@ -221,7 +226,7 @@ elif menu_pilihan == "Spending":
         st.info("Belum ada data.")
 
 # ==========================================
-# HALAMAN 3: TABUNGAN (UI BARU YANG LEBIH PREMIUM)
+# HALAMAN 3: TABUNGAN
 # ==========================================
 elif menu_pilihan == "Tabungan":
     st.markdown("<h1 style='margin-bottom: 0px;'>🎯 Savings & Goals Tracker</h1>", unsafe_allow_html=True)
@@ -236,7 +241,6 @@ elif menu_pilihan == "Tabungan":
         total_tabungan_all = terkumpul_nikah + terkumpul_rumah + terkumpul_mobil
         total_target_all = TARGET_NIKAH + TARGET_RUMAH + TARGET_MOBIL
         
-        # --- BAGIAN ATAS: RINGKASAN & GRAFIK ALOKASI ---
         kiri, kanan = st.columns([1, 2])
         with kiri:
             buat_kartu("🏆", "TOTAL ASET TABUNGAN", f"Rp {total_tabungan_all:,.0f}", "#8b5cf6", f"Dari total target Rp {total_target_all:,.0f}")
@@ -255,7 +259,6 @@ elif menu_pilihan == "Tabungan":
         st.divider()
         st.markdown("### 🚀 Detail Target")
         
-        # --- BAGIAN BAWAH: GRID KARTU TARGET (3 KOLOM SEJAJAR) ---
         c1, c2, c3 = st.columns(3)
         
         def render_goal_card(col, icon, title, terkumpul, target, color_hex):
@@ -266,9 +269,7 @@ elif menu_pilihan == "Tabungan":
                     
                     st.markdown(f"<h4 style='margin-bottom: 0px;'>{icon} {title}</h4>", unsafe_allow_html=True)
                     st.markdown(f"<h2 style='color: {color_hex}; margin-top: 5px; margin-bottom: 10px;'>Rp {terkumpul:,.0f}</h2>", unsafe_allow_html=True)
-                    
                     st.progress(persen)
-                    
                     st.markdown(f"""
                         <div style='display: flex; justify-content: space-between; font-size: 13px; color: gray; margin-top: 5px;'>
                             <span>🎯 Target: <b>Rp {target:,.0f}</b></span>
@@ -279,21 +280,22 @@ elif menu_pilihan == "Tabungan":
                         </div>
                     """, unsafe_allow_html=True)
 
-        render_goal_card(c1, "💍", "Biaya Nikah", terkumpul_nikah, TARGET_NIKAH, "#ec4899") # Warna Pink
-        render_goal_card(c2, "🏠", "Beli Rumah", terkumpul_rumah, TARGET_RUMAH, "#0ea5e9") # Warna Biru
-        render_goal_card(c3, "🚗", "Mobil", terkumpul_mobil, TARGET_MOBIL, "#eab308") # Warna Kuning
+        render_goal_card(c1, "💍", "Biaya Nikah", terkumpul_nikah, TARGET_NIKAH, "#ec4899")
+        render_goal_card(c2, "🏠", "Beli Rumah", terkumpul_rumah, TARGET_RUMAH, "#0ea5e9")
+        render_goal_card(c3, "🚗", "Mobil", terkumpul_mobil, TARGET_MOBIL, "#eab308")
         
     else:
         st.info("Belum ada tabungan yang tercatat.")
 
 # ==========================================
-# HALAMAN 4: WALLET
+# HALAMAN 4: WALLET & ACCOUNTS (UPDATE SUMBER PEMASUKAN)
 # ==========================================
 elif menu_pilihan == "Wallet":
     st.markdown("<h1 style='margin-bottom: 0px;'>🏛️ Wallet & Accounts</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color: gray; margin-bottom: 30px;'>Kondisi kas nyata di rekening Anda saat ini.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color: gray; margin-bottom: 30px;'>Kondisi kas riil dan analisis sumber pendapatan Anda.</p>", unsafe_allow_html=True)
     
     if not df.empty:
+        # --- PERHITUNGAN SALDO ALL TIME ---
         masuk_mandiri = df[(df['Tipe'] == 'Pemasukan') & (df['Sumber'] == 'MANDIRI')]['Nominal'].sum()
         keluar_mandiri = df[(df['Tipe'] != 'Pemasukan') & (df['Sumber'] == 'MANDIRI')]['Nominal'].sum()
         sisa_mandiri = masuk_mandiri - keluar_mandiri
@@ -302,11 +304,27 @@ elif menu_pilihan == "Wallet":
         keluar_jago = df[(df['Tipe'] != 'Pemasukan') & (df['Sumber'] == 'JAGO')]['Nominal'].sum()
         sisa_jago = masuk_jago - keluar_jago
         
+        st.markdown("### 💳 Saldo Rekening Saat Ini")
         c1, c2 = st.columns(2)
         with c1: buat_kartu("🏦", "BANK MANDIRI", f"Rp {sisa_mandiri:,.0f}", "#0ea5e9", "Akun Utama")
         with c2: buat_kartu("🟡", "BANK JAGO", f"Rp {sisa_jago:,.0f}", "#f59e0b", "Akun Operasional")
             
         st.divider()
+        
+        # --- UPDATE: RINCIAN SUMBER PEMASUKAN TERFILTER ---
+        st.markdown(f"### 💼 Sumber Pemasukan ({filter_waktu})")
+        
+        masuk_gits = df_filter[(df_filter['Tipe'] == 'Pemasukan') & (df_filter['Kategori'] == 'GITS')]['Nominal'].sum()
+        masuk_wo = df_filter[(df_filter['Tipe'] == 'Pemasukan') & (df_filter['Kategori'] == 'WO')]['Nominal'].sum()
+        masuk_freelance = df_filter[(df_filter['Tipe'] == 'Pemasukan') & (df_filter['Kategori'] == 'Freelance')]['Nominal'].sum()
+        
+        k1, k2, k3 = st.columns(3)
+        with k1: buat_kartu("🏢", "GITS", f"Rp {masuk_gits:,.0f}", "#22c55e", "Corporate / Primary Income")
+        with k2: buat_kartu("💍", "WEDDING ORGANIZER", f"Rp {masuk_wo:,.0f}", "#ec4899", "MUA / Project Income")
+        with k3: buat_kartu("💻", "FREELANCE", f"Rp {masuk_freelance:,.0f}", "#8b5cf6", "Side Hustle")
+            
+        st.divider()
+        
         st.markdown("#### 📋 History Transaksi")
         st.dataframe(df_filter.iloc[::-1], use_container_width=True, hide_index=True)
     else:
