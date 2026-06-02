@@ -15,16 +15,22 @@ gc = gspread.service_account_from_dict(kredensial)
 sheet_file = gc.open("KeuanganKu")
 worksheet = sheet_file.sheet1 
 
-# --- TARGET TABUNGAN IMPIAN ---
-TARGET_NIKAH = 50000000
-TARGET_RUMAH = 150000000
-TARGET_MOBIL = 80000000
+# --- TARGET TABUNGAN IMPIAN (UBAH ANGKA DI SINI) ---
+TARGET_NIKAH = 250000000
+TARGET_RUMAH = 1500000000
+TARGET_MOBIL = 400000000
+TARGET_JALAN = 20000000
+TARGET_UMROH = 35000000
 
 # --- GAYA DESAIN CUSTOM (CSS) SUPER PREMIUM ---
 st.markdown("""
     <style>
     /* Memaksimalkan lebar layar dan membuang ruang kosong di atas/bawah */
     .block-container { padding-top: 1rem; padding-bottom: 1rem; max-width: 98%; }
+    
+    /* MENARIK SIDEBAR KE ATAS AGAR TIDAK KOSONG */
+    [data-testid="stSidebar"] .block-container { padding-top: 1.5rem !important; }
+    [data-testid="stSidebarNav"] { display: none !important; }
     
     /* Efek Glassmorphism Modern untuk Kartu */
     .glass-card {
@@ -50,7 +56,7 @@ st.markdown("""
     .card-subtext { font-size: 13px; color: #888; font-weight: 500;}
     h1, h2, h3, h4 { font-weight: 800 !important; letter-spacing: -0.5px; }
     
-    /* Merapikan Sidebar */
+    /* Merapikan Form di Sidebar */
     [data-testid="stSidebar"] div.stForm { background-color: transparent; border: none; padding: 0;}
     [data-testid="stSidebar"] { border-right: 1px solid rgba(128, 128, 128, 0.2); }
     </style>
@@ -81,7 +87,7 @@ def buat_banner(judul, subjudul, gradient="linear-gradient(90deg, #0f172a 0%, #1
 # BAGIAN 1: SIDEBAR (NAVIGASI & QUICK INPUT)
 # ==========================================
 with st.sidebar:
-    st.markdown("<h3 style='text-align: center; margin-bottom: 20px;'>⚡ Financely</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; margin-bottom: 15px;'>⚡ Financely</h3>", unsafe_allow_html=True)
     
     menu_pilihan = option_menu(
         menu_title=None,  
@@ -124,7 +130,8 @@ with st.sidebar:
         if input_tipe == "Pemasukan":
             kategori_pilihan = ["GITS", "WO", "Freelance", "Lain-lain"]
         elif input_tipe == "Tabungan":
-            kategori_pilihan = ["Biaya Nikah", "Beli Rumah", "Mobil"]
+            # UPDATE: Kategori Tabungan Baru
+            kategori_pilihan = ["Biaya Nikah", "Beli Rumah", "Mobil", "Jalan-jalan", "Umroh"]
         else:
             kategori_pilihan = ["Makanan", "Transportasi", "Belanja", "Tagihan", "Subscription", "Lain-lain"]
             
@@ -153,7 +160,7 @@ if not df.empty:
     df_filter = df.loc[(df['Tanggal'] >= start_date) & (df['Tanggal'] <= end_date)]
 
 # Palet Warna Keren untuk Grafik
-CHART_COLORS = ["#0ea5e9", "#f43f5e", "#8b5cf6", "#10b981", "#f59e0b", "#ec4899"]
+CHART_COLORS = ["#0ea5e9", "#f43f5e", "#8b5cf6", "#10b981", "#f59e0b", "#ec4899", "#14b8a6"]
 
 # ==========================================
 # HALAMAN 1: DASHBOARD
@@ -162,7 +169,6 @@ if menu_pilihan == "Dashboard":
     buat_banner("Good morning, Difa ✨", "Corporate & MUA Financial Hub — Your daily cashflow overview.")
     
     if not df.empty:
-        # Perhitungan
         total_pemasukan_all = df[df['Tipe'] == 'Pemasukan']['Nominal'].sum()
         total_pengeluaran_all = df[df['Tipe'] == 'Pengeluaran']['Nominal'].sum()
         total_tabungan_all = df[df['Tipe'] == 'Tabungan']['Nominal'].sum()
@@ -171,7 +177,6 @@ if menu_pilihan == "Dashboard":
         masuk_filter = df_filter[df_filter['Tipe'] == 'Pemasukan']['Nominal'].sum()
         keluar_filter = df_filter[df_filter['Tipe'] == 'Pengeluaran']['Nominal'].sum()
         
-        # ROW 1: KARTU METRIK FULL WIDTH
         k1, k2, k3, k4 = st.columns(4)
         with k1: buat_kartu("💳", "NET LIQUIDITY", f"Rp {saldo_aktif:,.0f}", "#0ea5e9", "Total kas aktif siap pakai")
         with k2: buat_kartu("💰", "TOTAL ASSETS", f"Rp {total_tabungan_all:,.0f}", "#8b5cf6", "Akumulasi seluruh tabungan")
@@ -179,8 +184,6 @@ if menu_pilihan == "Dashboard":
         with k4: buat_kartu("📤", "CASH OUT", f"Rp {keluar_filter:,.0f}", "#f43f5e", f"Pengeluaran {filter_waktu.lower()}")
         
         st.write("")
-        
-        # ROW 2: GRAFIK MEMENUHI RUANG
         g1, g2 = st.columns([7, 3])
         with g1:
             with st.container():
@@ -204,7 +207,6 @@ if menu_pilihan == "Dashboard":
                     st.plotly_chart(fig_pie, use_container_width=True)
                 else: st.info("Area grafik proporsi.")
 
-        # ROW 3: TABEL TRANSAKSI FULL
         st.write("")
         st.markdown("#### 📋 Transaction Ledger")
         col_f1, col_f2 = st.columns(2)
@@ -255,12 +257,16 @@ elif menu_pilihan == "Tabungan":
     
     if not df.empty:
         df_tabungan = df[df['Tipe'] == 'Tabungan'] 
+        
+        # UPDATE: Kalkulasi Tabungan Baru
         terkumpul_nikah = df_tabungan[df_tabungan['Kategori'] == 'Biaya Nikah']['Nominal'].sum()
         terkumpul_rumah = df_tabungan[df_tabungan['Kategori'] == 'Beli Rumah']['Nominal'].sum()
         terkumpul_mobil = df_tabungan[df_tabungan['Kategori'] == 'Mobil']['Nominal'].sum()
+        terkumpul_jalan = df_tabungan[df_tabungan['Kategori'] == 'Jalan-jalan']['Nominal'].sum()
+        terkumpul_umroh = df_tabungan[df_tabungan['Kategori'] == 'Umroh']['Nominal'].sum()
         
-        total_tabungan_all = terkumpul_nikah + terkumpul_rumah + terkumpul_mobil
-        total_target_all = TARGET_NIKAH + TARGET_RUMAH + TARGET_MOBIL
+        total_tabungan_all = terkumpul_nikah + terkumpul_rumah + terkumpul_mobil + terkumpul_jalan + terkumpul_umroh
+        total_target_all = TARGET_NIKAH + TARGET_RUMAH + TARGET_MOBIL + TARGET_JALAN + TARGET_UMROH
         
         kiri, kanan = st.columns([1.5, 1])
         with kiri:
@@ -268,7 +274,8 @@ elif menu_pilihan == "Tabungan":
         with kanan:
             if total_tabungan_all > 0:
                 df_tab_group = df_tabungan.groupby('Kategori')['Nominal'].sum().reset_index()
-                fig_pie_tab = px.pie(df_tab_group, values='Nominal', names='Kategori', hole=0.6, color_discrete_sequence=["#ec4899", "#0ea5e9", "#eab308"])
+                # Penambahan warna untuk donut chart agar 5 kategori ter-cover
+                fig_pie_tab = px.pie(df_tab_group, values='Nominal', names='Kategori', hole=0.6, color_discrete_sequence=["#ec4899", "#0ea5e9", "#eab308", "#10b981", "#8b5cf6"])
                 fig_pie_tab.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=140, legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1))
                 st.plotly_chart(fig_pie_tab, use_container_width=True)
             else: st.write("")
@@ -276,14 +283,13 @@ elif menu_pilihan == "Tabungan":
         st.write("")
         st.markdown("### 🚀 Portfolio Blueprint")
         
-        c1, c2, c3 = st.columns(3)
         def render_goal_card(col, icon, title, terkumpul, target, color_hex):
             with col:
                 with st.container():
                     persen = min((terkumpul / target) if target > 0 else 0, 1.0)
                     sisa = max(target - terkumpul, 0)
                     html = f"""
-                    <div class="glass-card" style="border-top: 4px solid {color_hex};">
+                    <div class="glass-card" style="border-top: 4px solid {color_hex}; margin-bottom: 15px;">
                         <h3 style='margin-bottom: 0px; color: #888;'>{icon} {title}</h3>
                         <h2 style='color: {color_hex}; margin-top: 10px; margin-bottom: 15px; font-size: 30px;'>Rp {terkumpul:,.0f}</h2>
                     """
@@ -300,9 +306,17 @@ elif menu_pilihan == "Tabungan":
                     </div>
                     """, unsafe_allow_html=True)
 
+        # Baris Pertama (3 Kartu)
+        c1, c2, c3 = st.columns(3)
         render_goal_card(c1, "💍", "Biaya Nikah", terkumpul_nikah, TARGET_NIKAH, "#ec4899")
         render_goal_card(c2, "🏠", "Beli Rumah", terkumpul_rumah, TARGET_RUMAH, "#0ea5e9")
         render_goal_card(c3, "🚗", "Mobil", terkumpul_mobil, TARGET_MOBIL, "#eab308")
+        
+        # Baris Kedua (2 Kartu Baru)
+        c4, c5, c6 = st.columns(3)
+        render_goal_card(c4, "✈️", "Jalan-jalan", terkumpul_jalan, TARGET_JALAN, "#10b981")
+        render_goal_card(c5, "🕋", "Umroh", terkumpul_umroh, TARGET_UMROH, "#8b5cf6")
+        
     else: st.info("Belum ada tabungan.")
 
 # ==========================================
