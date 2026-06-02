@@ -25,13 +25,14 @@ TARGET_JALAN = 20000000
 TARGET_UMROH = 35000000
 
 # --- GAYA DESAIN CUSTOM (CSS) SUPER PREMIUM ---
+# --- GAYA DESAIN CUSTOM (CSS) SUPER PREMIUM ---
 st.markdown("""
     <style>
     /* Memaksimalkan lebar layar dan membuang ruang kosong di atas/bawah */
     .block-container { padding-top: 1rem; padding-bottom: 1rem; max-width: 98%; }
     
     /* MENARIK SIDEBAR KE ATAS AGAR TIDAK KOSONG */
-    [data-testid="stSidebar"] .block-container { padding-top: 1.5rem !important; }
+    [data-testid="stSidebar"] > div:first-child { padding-top: 1.5rem !important; }
     [data-testid="stSidebarNav"] { display: none !important; }
     
     /* Efek Glassmorphism Modern untuk Kartu */
@@ -89,7 +90,7 @@ def buat_banner(judul, subjudul, gradient="linear-gradient(90deg, #0f172a 0%, #1
 # BAGIAN 1: SIDEBAR (NAVIGASI & QUICK INPUT)
 # ==========================================
 with st.sidebar:
-    st.markdown("<h3 style='text-align: center; margin-bottom: 15px;'>⚡ Financely</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; margin-top: -10px; margin-bottom: 15px;'>⚡ Financely</h3>", unsafe_allow_html=True)
     
     menu_pilihan = option_menu(
         menu_title=None,  
