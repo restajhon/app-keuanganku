@@ -130,7 +130,6 @@ with st.sidebar:
         if input_tipe == "Pemasukan":
             kategori_pilihan = ["GITS", "WO", "Freelance", "Lain-lain"]
         elif input_tipe == "Tabungan":
-            # UPDATE: Kategori Tabungan Baru
             kategori_pilihan = ["Biaya Nikah", "Beli Rumah", "Mobil", "Jalan-jalan", "Umroh"]
         else:
             kategori_pilihan = ["Makanan", "Transportasi", "Belanja", "Tagihan", "Subscription", "Lain-lain"]
@@ -207,6 +206,35 @@ if menu_pilihan == "Dashboard":
                     st.plotly_chart(fig_pie, use_container_width=True)
                 else: st.info("Area grafik proporsi.")
 
+        st.write("---")
+        
+        # --- FITUR BARU: TOTAL MONTHLY SUMMARY ---
+        st.markdown("#### 📅 Total Monthly Summary")
+        df_monthly = df.copy()
+        if not df_monthly.empty:
+            df_monthly['Tanggal'] = pd.to_datetime(df_monthly['Tanggal'])
+            df_monthly['Bulan'] = df_monthly['Tanggal'].dt.strftime('%B %Y')
+            
+            df_summary = df_monthly[df_monthly['Tipe'].isin(['Pemasukan', 'Pengeluaran'])].groupby(['Bulan', 'Tipe'])['Nominal'].sum().unstack(fill_value=0).reset_index()
+            
+            for col in ['Pemasukan', 'Pengeluaran']:
+                if col not in df_summary.columns:
+                    df_summary[col] = 0
+                    
+            df_summary['Sisa'] = df_summary['Pemasukan'] - df_summary['Pengeluaran']
+            
+            st.dataframe(
+                df_summary.style.format({
+                    "Pemasukan": "Rp {:,.0f}", 
+                    "Pengeluaran": "Rp {:,.0f}", 
+                    "Sisa": "Rp {:,.0f}"
+                }).map(lambda x: 'color: #10b981' if x > 0 else ('color: #f43f5e' if x < 0 else ''), subset=['Sisa']), 
+                use_container_width=True, 
+                hide_index=True
+            )
+        else:
+            st.info("Belum ada data transaksi bulanan.")
+
         st.write("")
         st.markdown("#### 📋 Transaction Ledger")
         col_f1, col_f2 = st.columns(2)
@@ -238,14 +266,52 @@ elif menu_pilihan == "Spending":
             st.write("")
             c1, c2 = st.columns([1, 1.5])
             with c1:
+                st.markdown("#### 🍩 Proporsi Kategori")
                 fig_pie = px.pie(df_pengeluaran, values='Nominal', names='Kategori', hole=0.5, color_discrete_sequence=CHART_COLORS)
-                fig_pie.update_layout(height=400, margin=dict(l=0, r=0, t=30, b=0))
+                fig_pie.update_layout(height=350, margin=dict(l=0, r=0, t=10, b=0))
                 st.plotly_chart(fig_pie, use_container_width=True)
             with c2:
-                ringkasan = df_pengeluaran.groupby('Kategori')['Nominal'].sum().reset_index().sort_values(by='Nominal', ascending=True)
-                fig_bar = px.bar(ringkasan, x='Nominal', y='Kategori', orientation='h', text_auto='.2s', color='Kategori', color_discrete_sequence=CHART_COLORS)
-                fig_bar.update_layout(height=400, margin=dict(l=0, r=0, t=30, b=0), showlegend=False, xaxis_title="", yaxis_title="")
-                st.plotly_chart(fig_bar, use_container_width=True)
+                # --- FITUR BARU: TOP 5 SPENDING ---
+                st.markdown("#### 🚨 Top 5 Spending Categories")
+                top_5 = df_pengeluaran.groupby('Kategori')['Nominal'].sum().nlargest(5).reset_index()
+                
+                fig_top5 = px.bar(
+                    top_5, x='Nominal', y='Kategori', orientation='h', 
+                    text_auto='.2s', color='Nominal', color_continuous_scale='Reds'
+                )
+                fig_top5.update_layout(
+                    yaxis={'categoryorder':'total ascending'}, 
+                    xaxis_title="", yaxis_title="", showlegend=False, 
+                    height=350, margin=dict(l=0, r=0, t=10, b=0)
+                )
+                st.plotly_chart(fig_top5, use_container_width=True)
+            
+            st.write("---")
+            
+            # --- FITUR BARU: CATEGORIZATION HEATMAP ---
+            st.markdown("### 🗓️ Daily Spending Heatmap")
+            df_heat = df[df['Tipe'] == 'Pengeluaran'].copy()
+            if not df_heat.empty:
+                df_heat['Tanggal'] = pd.to_datetime(df_heat['Tanggal'])
+                df_heat['Bulan'] = df_heat['Tanggal'].dt.strftime('%Y-%m')
+                df_heat['Hari'] = df_heat['Tanggal'].dt.day
+                
+                heat_data = df_heat.groupby(['Bulan', 'Hari'])['Nominal'].sum().reset_index()
+                pivot_heat = heat_data.pivot(index="Bulan", columns="Hari", values="Nominal").fillna(0)
+                pivot_heat = pivot_heat.reindex(columns=range(1, 32), fill_value=0)
+                
+                fig_heat = px.imshow(
+                    pivot_heat, 
+                    labels=dict(x="Tanggal", y="Bulan", color="Pengeluaran (Rp)"),
+                    x=pivot_heat.columns, y=pivot_heat.index,
+                    color_continuous_scale="RdYlGn_r", aspect="auto"
+                )
+                fig_heat.update_xaxes(side="top", tickmode="linear", dtick=1)
+                fig_heat.update_layout(height=250, margin=dict(l=0, r=0, t=30, b=0))
+                st.plotly_chart(fig_heat, use_container_width=True)
+            else:
+                st.info("Belum ada data pengeluaran untuk menampilkan heatmap kalender.")
+
         else: st.info(f"Tidak ada pengeluaran di periode {filter_waktu}.")
     else: st.info("Belum ada data.")
 
@@ -258,7 +324,6 @@ elif menu_pilihan == "Tabungan":
     if not df.empty:
         df_tabungan = df[df['Tipe'] == 'Tabungan'] 
         
-        # UPDATE: Kalkulasi Tabungan Baru
         terkumpul_nikah = df_tabungan[df_tabungan['Kategori'] == 'Biaya Nikah']['Nominal'].sum()
         terkumpul_rumah = df_tabungan[df_tabungan['Kategori'] == 'Beli Rumah']['Nominal'].sum()
         terkumpul_mobil = df_tabungan[df_tabungan['Kategori'] == 'Mobil']['Nominal'].sum()
@@ -274,7 +339,6 @@ elif menu_pilihan == "Tabungan":
         with kanan:
             if total_tabungan_all > 0:
                 df_tab_group = df_tabungan.groupby('Kategori')['Nominal'].sum().reset_index()
-                # Penambahan warna untuk donut chart agar 5 kategori ter-cover
                 fig_pie_tab = px.pie(df_tab_group, values='Nominal', names='Kategori', hole=0.6, color_discrete_sequence=["#ec4899", "#0ea5e9", "#eab308", "#10b981", "#8b5cf6"])
                 fig_pie_tab.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=140, legend=dict(orientation="v", yanchor="middle", y=0.5, xanchor="left", x=1))
                 st.plotly_chart(fig_pie_tab, use_container_width=True)
@@ -306,13 +370,11 @@ elif menu_pilihan == "Tabungan":
                     </div>
                     """, unsafe_allow_html=True)
 
-        # Baris Pertama (3 Kartu)
         c1, c2, c3 = st.columns(3)
         render_goal_card(c1, "💍", "Biaya Nikah", terkumpul_nikah, TARGET_NIKAH, "#ec4899")
         render_goal_card(c2, "🏠", "Beli Rumah", terkumpul_rumah, TARGET_RUMAH, "#0ea5e9")
         render_goal_card(c3, "🚗", "Mobil", terkumpul_mobil, TARGET_MOBIL, "#eab308")
         
-        # Baris Kedua (2 Kartu Baru)
         c4, c5, c6 = st.columns(3)
         render_goal_card(c4, "✈️", "Jalan-jalan", terkumpul_jalan, TARGET_JALAN, "#10b981")
         render_goal_card(c5, "🕋", "Umroh", terkumpul_umroh, TARGET_UMROH, "#8b5cf6")
