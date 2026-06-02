@@ -132,19 +132,19 @@ with tab_dashboard:
 with tab_input:
     st.markdown("<h3 style='text-align: center; color: #1e293b;'>📝 Form Pencatatan</h3>", unsafe_allow_html=True)
     
-    # Form dibungkus dalam container agar memiliki border tipis yang rapi di layar HP
     with st.container(border=True):
+        # 1. PINDAHKAN TIPE KE LUAR FORM AGAR BISA DINAMIS
+        input_tipe = st.radio("Pilih Jenis Transaksi", ["Pengeluaran", "Pemasukan"], horizontal=True)
+        
+        st.divider()
+        
+        # Form pencatatan dimulai di sini
         with st.form("form_transaksi_baru", clear_on_submit=True):
             
-            # 1. Pilihan Tipe Utama (Pemasukan atau Pengeluaran)
-            input_tipe = st.radio("Pilih Jenis Transaksi", ["Pengeluaran", "Pemasukan"], horizontal=True)
-            
-            st.divider()
-            
-            # 2. Pilihan Sumber Dana (Sesuai Permintaan Anda)
+            # 2. Pilihan Sumber Dana
             input_sumber = st.selectbox("Pilih Rekening / Sumber Dana", ["MANDIRI", "JAGO"])
             
-            # 3. Logika Kategori Dinamis: Pilihan kategori akan otomatis berubah mengikuti tipe yang dipilih di atas
+            # 3. Logika Kategori (Sekarang akan langsung berubah saat radio button diklik!)
             if input_tipe == "Pemasukan":
                 kategori_pilihan = ["GITS", "WO", "Freelance", "Lain-lain"]
             else:
@@ -152,10 +152,10 @@ with tab_input:
                 
             input_kategori = st.selectbox("Pilih Kategori", kategori_pilihan)
             
-            # 4. Input Detail Lainnya (Tanggal, Nominal, Catatan)
+            # 4. Input Detail Lainnya
             input_tanggal = st.date_input("Tanggal Transaksi", datetime.today())
             input_nominal = st.number_input("Nominal (Rp)", min_value=0, step=5000)
-            input_catatan = st.text_input("Keterangan / Catatan Tambahan (Misal: Bayar Netflix)")
+            input_catatan = st.text_input("Keterangan / Catatan Tambahan")
             
             # Tombol Submit Form
             tombol_simpan = st.form_submit_button("🔥 Simpan Transaksi Ke Sistem")
@@ -164,13 +164,9 @@ with tab_input:
             if tombol_simpan:
                 if input_nominal > 0:
                     tanggal_teks = input_tanggal.strftime("%Y-%m-%d")
-                    
-                    # Menyusun baris sesuai urutan kolom baru di Google Sheets Anda
                     baris_baru = [tanggal_teks, input_tipe, input_sumber, input_kategori, input_nominal, input_catatan]
-                    
-                    # Menyisipkan data ke baris paling bawah di Google Sheets
                     worksheet.append_row(baris_baru)
                     st.success(f"Berhasil mencatat {input_tipe} sebesar Rp {input_nominal:,.0f} via {input_sumber}!")
-                    st.balloons() # Efek animasi balon seru sebagai tanda sukses
+                    st.balloons()
                 else:
                     st.warning("Mohon isi nominal uang terlebih dahulu sebelum menyimpan.")
